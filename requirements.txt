@@ -1,0 +1,3 @@
+# Copyright (c) Tudor Oancea, 2022
+# This file only contains pip dependencies that are required to run the main package.
+numpy

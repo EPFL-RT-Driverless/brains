@@ -1,0 +1,40 @@
+# Copyright (c) Tudor Oancea, 2022
+
+name: Check the correct version is written in CHANGELOG.md and setup.py
+on:
+  pull_request:
+    branches:
+      - "main"
+jobs:
+  check-changelog:
+    runs-on: ubuntu-latest
+    if: startsWith(github.event.pull_request.title, 'release')
+    steps:
+      - name: checkout
+        uses: actions/checkout@v3
+      - name: check version in setup.py
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          echo $PR_TITLE | grep -e "release.*" || exit 1
+          export VERSION=$(echo $PR_TITLE | sed -E 's/.* (v[0-9\-\.]*)/\1/g')
+          if [[ $(grep "$VERSION" CHANGELOG.md) == "" ]]; then
+            echo "VERSION MISMATCH"
+            exit 1
+          fi
+  check-setup:
+    runs-on: ubuntu-latest
+    if: startsWith(github.event.pull_request.title, 'release')
+    steps:
+      - name: checkout
+        uses: actions/checkout@v3
+      - name: check version in setup.py
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          echo $PR_TITLE | grep -e "release.*" || exit 1
+          export VERSION=$(echo $PR_TITLE | sed -E 's/.* v([0-9\-\.]*)/\1/g')
+          if [[ $(grep "$VERSION" setup.py) == "" ]]; then
+            echo "VERSION MISMATCH"
+            exit 1
+          fi

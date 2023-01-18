@@ -1,0 +1,23 @@
+# Copyright (c) Tudor Oancea, 2022
+
+name: Add git tag versioning
+on:
+  pull_request:
+    branches: ["main"]
+    types: [closed]
+jobs:
+  add_tag:
+    runs-on: ubuntu-latest
+    if: startsWith(github.event.pull_request.title, 'release') && github.event.pull_request.merged == true
+    steps:
+      - name: checkout
+        uses: actions/checkout@v3
+      - name: Add tag
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          echo $PR_TITLE | grep -e "release.*" || exit 1
+          git remote set-url origin https://${GITHUB_ACTOR}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+          git tag $(echo $PR_TITLE | sed -E 's/.* (v[0-9\-\.]*)/\1/g')
+          git tag -l
+          git push origin --tags

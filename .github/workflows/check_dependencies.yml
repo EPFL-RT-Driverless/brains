@@ -1,0 +1,42 @@
+# Copyright (c) Tudor Oancea, 2022
+
+name: Check that that all the listed dependencies in requirements.txt and requirements_dev.txt are specified with a specific git tag
+on:
+  pull_request:
+    branches:
+      - "main"
+jobs:
+  check-changelog:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v3
+      - name: check specified versions in requirements.txt and requirements_dev.txt
+        uses: jannekem/run-python-script-action@v1
+        with:
+          script: |
+            def check_versions(lines):
+              faulty_lines = []
+              for line in lines:
+                if "-e" not in line:
+                  faulty_lines.append("Dependency not specified with -e for {}".format(line))
+                if "@" not in line:
+                  faulty_lines.append("No version specified for line {}".format(line))
+                  exit(1)
+                if "@v" not in line:
+                  faulty_lines.append("No git tag specified for line {}".format(line))
+
+              for line in faulty_lines:
+                print(line)
+
+            requirements = open("requirements.txt", "r").readlines()
+            lines = [line for line in requirements if "git+" in line]
+            errors = check_versions(lines)
+            requirements_dev = open("requirements_dev.txt", "r").readlines()
+            lines = [line for line in requirements_dev if "git+" in line]
+            errors_dev = check_versions(lines)
+
+            if errors or errors_dev:
+              exit(1)
+            else:
+              exit(0)

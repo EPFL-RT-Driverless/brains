@@ -1,0 +1,13 @@
+# IDE config files
+.idea
+.vscode
+
+# Python output
+venv
+*.pyc
+*.pyo
+__pycache__
+venv-*
+*.egg
+*.egg-info
+

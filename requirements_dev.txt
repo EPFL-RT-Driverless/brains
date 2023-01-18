@@ -1,0 +1,2 @@
+# Copyright (c) Tudor Oancea, 2022
+# This file contains pip dependencies that are not required to run the main package, but only to run the tests or other work files.
