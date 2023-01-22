@@ -1,0 +1,4 @@
+#  Copyright (c) 2023. Tudor Oancea EPFL Racing Team Driverless
+numpy
+scipy~=1.8.0
+matplotlib~=3.5.0
