@@ -11,3 +11,7 @@ venv-*
 *.egg
 *.egg-info
 
+build.env
+install
+build
+log
