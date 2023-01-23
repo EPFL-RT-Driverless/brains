@@ -7,15 +7,14 @@ one specifies the file called in `ros2 launch ...` to launch all the necessary n
 
 
 # initial setup
-We have to:
-1) install the dependencies of the python package
-2) install the python package in editable mode in the venv (either pip or conda) via `pip install -e src/python`
-3) if there is a venv dir, add a `COLCON_IGNORE` file to it to avoid colcon trying to build it
-4) build colcon workspace via `scripts/build.sh`
-5) install extras: `black`, `pre-commit`, etc.
-6) manually add `<path_to_project>/install/custom_interfaces/lib/python3.10/site-packages` and
-   `~/miniforge3/envs/ros_humble/lib/python3.10/site-packages` to the interpreter paths
-   of pycharm. Note that you may have to adjust the python version in the path.
+Create a virtual environment either using `python3 -m venv` or `conda env create` and install the following
+dependencies manually:
+- `torch`: the installation changes a lot depending on whether you have cuda or not, or if you have to install a
+  custom weird version on the Jetson.
+- `casadi`: there is still no official lib for arm, so you may have to install it from source or use the following
+  develop [nightly builds](https://github.com/casadi/casadi/releases/tag/nightly-develop).
+- `acados`: You have to install it from source so ...
+- `forcespro`: same
 
 # launch the project
 make sure you have sourced the base ros2 environment

@@ -21,16 +21,20 @@ for d in venv*; do
     fi
 done
 
-# build the workspace with colcon (use bash or zsh depending on the current shell)
-FSDS_ROS_ROOT=$HOME/Formula-Student-Driverless-Simulator/ros2
-if [ -f "$FSDS_ROS_ROOT/install/setup.sh" ]; then
+# if JETSON var is not defined, source the FSDS ros2 bridge
+if [ -z "$JETSON" ]; then
+  FSDS_ROS_ROOT=$HOME/Formula-Student-Driverless-Simulator/ros2
+  if [ -f "$FSDS_ROS_ROOT/install/setup.sh" ]; then
 
-    if [ -z "$ZSH_VERSION" ]; then
-        source "$FSDS_ROS_ROOT/install/setup.zsh"
-    else
-        source "$FSDS_ROS_ROOT/install/setup.bash"
-    fi
+      if [ -z "$ZSH_VERSION" ]; then
+          source "$FSDS_ROS_ROOT/install/setup.zsh"
+      else
+          source "$FSDS_ROS_ROOT/install/setup.bash"
+      fi
+  fi
 fi
+
+# build the workspace with colcon (use bash or zsh depending on the current shell)
 if [ -z "$ZSH_VERSION" ]; then
     zsh scrips/build.sh
 else
