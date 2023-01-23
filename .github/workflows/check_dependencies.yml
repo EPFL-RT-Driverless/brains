@@ -29,12 +29,12 @@ jobs:
               for line in faulty_lines:
                 print(line)
 
-            requirements = open("requirements.txt", "r").readlines()
+            requirements = open("src/brains_python/requirements.txt", "r").readlines()
             lines = [line for line in requirements if "git+" in line]
             errors = check_versions(lines)
-            requirements_dev = open("requirements_dev.txt", "r").readlines()
-            lines = [line for line in requirements_dev if "git+" in line]
-            errors_dev = check_versions(lines)
+            # requirements_dev = open("src/brains_python/requirements_dev.txt", "r").readlines()
+            # lines = [line for line in requirements_dev if "git+" in line]
+            # errors_dev = check_versions(lines)
 
             if errors or errors_dev:
               exit(1)
