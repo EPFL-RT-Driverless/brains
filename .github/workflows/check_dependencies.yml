@@ -35,6 +35,7 @@ jobs:
             # requirements_dev = open("src/brains_python/requirements_dev.txt", "r").readlines()
             # lines = [line for line in requirements_dev if "git+" in line]
             # errors_dev = check_versions(lines)
+            errors_dev=False
 
             if errors or errors_dev:
               exit(1)
