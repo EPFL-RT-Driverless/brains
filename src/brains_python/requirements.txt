@@ -4,7 +4,9 @@ scipy~=1.8.0
 matplotlib~=3.5.0
 requests
 pytest
-
+# opencv
+# opencv-python
+# cv2
 -e git+https://github.com/EPFL-RT-Driverless/trajectory_planning_helpers.git@v2.0.5#egg=trajectory_planning_helpers
 -e git+https://github.com/EPFL-RT-Driverless/track_database.git@v3.0.2#egg=track_database
 -e git+https://github.com/EPFL-RT-Driverless/data_visualization.git@v1.1.1#egg=data_visualization

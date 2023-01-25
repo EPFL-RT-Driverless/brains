@@ -8,6 +8,7 @@ except ImportError:
     warnings.warn(
         "forcespro wasn't found in the PYTHONPATH env variable, please add it if you really want to use IHM."
     )
+    CodeOptions = None
     Solver = None
     SymbolicModel = None
 
