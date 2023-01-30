@@ -81,7 +81,7 @@ class IHMAcados(Controller):
         # create model ===============================================================
         model = AcadosModel()
         self.model = model
-        model.name = "ihm_forces"
+        model.name = "ihm_acados"
 
         # variables
         X = ca.SX.sym("X")

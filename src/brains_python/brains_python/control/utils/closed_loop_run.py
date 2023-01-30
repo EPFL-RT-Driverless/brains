@@ -2,7 +2,7 @@
 import sys
 from enum import Enum
 from time import perf_counter
-from typing import Optional, Union
+from typing import Optional, Union, Callable
 
 import numpy as np
 import track_database as td
@@ -69,6 +69,8 @@ class ClosedLoopRun:
     exit_reason: Optional[str]
     mission_time: Optional[float]
 
+    callbacks: list[Callable]
+
     def __init__(
         self,
         mission: Mission,
@@ -132,6 +134,10 @@ class ClosedLoopRun:
         self.successful_run = False
         self.exit_reason = None
         self.mission_time = None
+        self.callbacks = []
+
+    def submit_callback(self, callback: Callable):
+        self.callbacks.append(callback)
 
     def _compute_new_motion_planner_params(
         self,
@@ -252,6 +258,9 @@ class ClosedLoopRun:
         # this value does not actually matter since it is redefined in Step 3.3
         while True:
             start_iteration = perf_counter()
+            for callback in self.callbacks:
+                callback(self)
+
             # STEP 3.1: get current state ================================================
             # at first iteration, we have already
             if iteration > 0:
@@ -466,15 +475,25 @@ class ClosedLoopRun:
         self.states = np.array(self.states)
         self.controls = np.array(self.controls)
         self.control_derivatives = np.array(self.control_derivatives)
-        self.metrics = np.concatenate(
-            [np.expand_dims(m, 0) for m in self.metrics], axis=0
-        )
+        # find first index where the metric changes dimension
+        bruh = len(self.metrics)
+        for i in range(len(self.metrics)):
+            if len(self.metrics[i]) != len(self.metrics[0]):
+                bruh = i
+                break
         self.references = np.concatenate(
-            [np.expand_dims(r, 0) for r in self.references], axis=0
+            [np.expand_dims(r, 0) for r in self.references[:bruh]], axis=0
         )
-        self.predictions = np.concatenate(
-            [np.expand_dims(p, 0) for p in self.predictions], axis=0
-        )
+        # bruh = len(self.predictions)
+        # for i in range(len(self.predictions)):
+        #     if len(self.predictions[i]) != len(self.predictions[0]):
+        #         bruh = i
+        #         break
+        #
+        # self.predictions = np.concatenate(
+        #     [np.expand_dims(p, 0) for p in self.predictions[:bruh]], axis=0
+        # )
+
         self.compute_control_times = np.array(self.compute_control_times)
         self.mission_time = iteration * self.sampling_time
 

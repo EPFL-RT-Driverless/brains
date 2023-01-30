@@ -29,7 +29,7 @@ def test_stanley_init():
         pytest.fail(e)
 
 
-@pytest.skip("Skipping test for now")
+# @pytest.skip("Skipping test for now")
 @pytest.mark.parametrize("args", AVAILABLE_MISSION_TRACK_TUPLES)
 def test_stanley_different_tracks(args: tuple):
     mission, track_name = args
@@ -42,4 +42,4 @@ def test_stanley_different_tracks(args: tuple):
 
 
 if __name__ == "__main__":
-    test_stanley_different_tracks(AVAILABLE_MISSION_TRACK_TUPLES[-1])
+    test_stanley_different_tracks(AVAILABLE_MISSION_TRACK_TUPLES[2])

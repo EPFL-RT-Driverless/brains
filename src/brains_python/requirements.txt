@@ -1,14 +1,6 @@
 #  Copyright (c) 2023. Tudor Oancea EPFL Racing Team Driverless
-numpy
-scipy~=1.8.0
-matplotlib~=3.5.0
-requests
-pytest
-# opencv
-# opencv-python
-# cv2
--e git+https://github.com/EPFL-RT-Driverless/trajectory_planning_helpers.git@v2.0.5#egg=trajectory_planning_helpers
--e git+https://github.com/EPFL-RT-Driverless/track_database.git@v3.0.2#egg=track_database
--e git+https://github.com/EPFL-RT-Driverless/data_visualization.git@v1.1.1#egg=data_visualization
--e git+https://github.com/EPFL-RT-Driverless/fsds_client.git@v3.0.0#egg=fsds_client
--e git+https://github.com/EPFL-RT-Driverless/pyGLIS@v2.2.2#egg=pyGLIS
+-e git+https://github.com/EPFL-RT-Driverless/data_visualization.git@v1.1.2#egg=data_visualization
+-e git+https://github.com/EPFL-RT-Driverless/fsds_client.git@v3.0.1#egg=fsds_client
+-e git+https://github.com/EPFL-RT-Driverless/pyGLIS@v2.2.3#egg=pyGLIS
+-e git+https://github.com/EPFL-RT-Driverless/track_database.git@v3.0.3#egg=track_database
+-e git+https://github.com/EPFL-RT-Driverless/trajectory_planning_helpers.git@v2.0.6#egg=trajectory_planning_helpers
