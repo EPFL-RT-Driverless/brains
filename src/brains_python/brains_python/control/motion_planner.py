@@ -19,7 +19,6 @@ class MotionPlannerParams(PODS):
     center_points: np.ndarray  # points defining the center line of the track, shape (N, 2)
     widths: np.ndarray  # right and left widths (in this order) of the track at each
     # center point, shape (N, 2)
-    closed: bool  # whether the track should be considered as closed or not. WARNING:
     # the provided arrays above should always be specified as unclosed,
     # i.e. the last and first point are different
     psi_s: float = np.pi / 2  # the orientation angle of the center line at the start of

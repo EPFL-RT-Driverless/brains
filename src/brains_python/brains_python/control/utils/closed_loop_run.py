@@ -188,8 +188,6 @@ class ClosedLoopRun:
                 widths=horizon_widths,
                 psi_s=psi_s,
                 psi_e=psi_e,
-                closed=False,
-                min_curve=False,
                 additional_attributes=[],
             )
         else:

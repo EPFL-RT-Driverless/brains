@@ -29,13 +29,9 @@ def create_test_config(
     car_params = CarParams(**fsds_car_params)
     if mission == Mission.AUTOCROSS:
         autox_motion_planner_params = MotionPlannerParams(
-            mission=mission,
+            mission=Mission.TRACKDRIVE,
             center_points=track.center_line,
             widths=track.track_widths,
-            psi_s=np.pi / 2,
-            psi_e=np.pi / 2,
-            closed=True,
-            min_curve=False,
             additional_attributes=["right_width_vs_time", "left_width_vs_time"],
         )
         autox_motion_planner = MotionPlanner(
