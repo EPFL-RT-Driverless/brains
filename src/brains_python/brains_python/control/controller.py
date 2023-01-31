@@ -4,8 +4,7 @@ from typing import Optional, Union
 
 import numpy as np
 
-from brains_python.common.params import Params
-
+from strongpods import PODS
 
 __all__ = [
     "Controller",
@@ -62,7 +61,7 @@ class ControlReturnDev(ControlReturn):
         self.metric = metric
 
 
-class CarParams(Params):
+class CarParams(PODS):
     """
     PODS (Plain Old Data Structure) class that contains all the useful physical
     parameters of a car.
@@ -111,7 +110,7 @@ class CarParams(Params):
         super().__init__(**remaining_params)
 
 
-class ControllerParams(Params):
+class ControllerParams(PODS):
     """
     PODS (Plain Old Data Structure) class that contains all the useful parameters of a
     Controller. Only contains one field common to all Controllers and is subclassed by

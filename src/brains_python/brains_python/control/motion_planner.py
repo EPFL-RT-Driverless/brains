@@ -2,16 +2,17 @@
 from typing import Tuple, Optional, Union
 
 import numpy as np
-import trajectory_planning_helpers as tph
 from scipy.interpolate import InterpolatedUnivariateSpline
 
-from brains_python.common import Params, Mission
+import trajectory_planning_helpers as tph
+from brains_python.common import Mission
 from brains_python.control.controller import CarParams
+from strongpods import PODS
 
 __all__ = ["MotionPlanner", "MotionPlannerParams"]
 
 
-class MotionPlannerParams(Params):
+class MotionPlannerParams(PODS):
     """PODS (Plain Old Data Structure) containing all the parameters used by the MotionPlanner class."""
 
     # track info
@@ -21,9 +22,9 @@ class MotionPlannerParams(Params):
     closed: bool  # whether the track should be considered as closed or not. WARNING:
     # the provided arrays above should always be specified as unclosed,
     # i.e. the last and first point are different
-    psi_s: Optional[float]  # the orientation angle of the center line at the start of
+    psi_s: float = np.pi / 2  # the orientation angle of the center line at the start of
     # the track (in radians). Only needed if the track is not closed.
-    psi_e: Optional[float]  # the orientation angle of the center line at the start of
+    psi_e: float = np.pi / 2  # the orientation angle of the center line at the start of
     # the track (in radians). Only needed if the track is not closed.
 
     # algorithm behavior
@@ -36,7 +37,8 @@ class MotionPlannerParams(Params):
     def __init__(self, **kwargs):
         current_params, remaining_params = MotionPlannerParams._transform_dict(kwargs)
         for key, val in current_params.items():
-            setattr(self, key, val)
+            if getattr(self, key) is None:
+                setattr(self, key, val)
         super().__init__(**remaining_params)
 
 
@@ -660,7 +662,7 @@ class MotionPlanner:
 
     @property
     def closed(self) -> bool:
-        return self.motion_planner_params.closed
+        return self.mission == Mission.TRACKDRIVE
 
 
 def _movmean(x, N):
