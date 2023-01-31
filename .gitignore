@@ -10,8 +10,18 @@ __pycache__
 venv-*
 *.egg
 *.egg-info
+.pytest_cache
 
+# ROS workspace build output
 build.env
 install
 build
 log
+
+# macOS stuff
+.DS_Store
+
+# control stuff ====================
+# forcespro solvers
+ihm_solver*
+*.forces

@@ -1,4 +1,4 @@
-#  Copyright (c) 2023. Tudor Oancea EPFL Racing Team Driverless
+# Copyright (c) 2023. Tudor Oancea EPFL Racing Team Driverless
 cmake_minimum_required(VERSION 3.8)
 project(brains_cpp)
 
@@ -20,7 +20,6 @@ find_package(pcl_msgs REQUIRED)
 find_package(pendulum_msgs REQUIRED)
 find_package(rosgraph_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
-find_package(sensor_msgs_py REQUIRED)
 find_package(shape_msgs REQUIRED)
 find_package(statistics_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
@@ -34,9 +33,11 @@ find_package(visualization_msgs REQUIRED)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
+
   # the following line skips the linter which checks for copyrights
   # comment the line when a copyright and license is added to all source files
   set(ament_cmake_copyright_FOUND TRUE)
+
   # the following line skips cpplint (only works in a git repo)
   # comment the line when this package is in a git repo and when
   # a copyright and license is added to all source files

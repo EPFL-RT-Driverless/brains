@@ -22,7 +22,6 @@
   <depend>pendulum_msgs</depend>
   <depend>rosgraph_msgs</depend>
   <depend>sensor_msgs</depend>
-  <depend>sensor_msgs_py</depend>
   <depend>shape_msgs</depend>
   <depend>statistics_msgs</depend>
   <depend>std_msgs</depend>
