@@ -1,6 +1,7 @@
-data/control_dataset.npy
+control_dataset.npy
 sysid_dataset
 ve_dataset
 vision_dataset
+localization_dataset
 ihm_forces_ocp.json
 ihm_forces_gen_code
