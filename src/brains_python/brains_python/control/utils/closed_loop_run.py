@@ -68,7 +68,7 @@ class ClosedLoopRun:
     successful_run: bool
     exit_reason: Optional[str]
     mission_time: Optional[float]
-
+    iteration: int
     callbacks: list[Callable]
 
     def __init__(
@@ -134,6 +134,7 @@ class ClosedLoopRun:
         self.successful_run = False
         self.exit_reason = None
         self.mission_time = None
+        self.iteration = 0
         self.callbacks = []
 
     def submit_callback(self, callback: Callable):
@@ -250,7 +251,7 @@ class ClosedLoopRun:
             publisher_instance = None
 
         # STEP 3 : run simulation =========================================================
-        iteration = 0
+        self.iteration = 0
         last_cross_track_error = 0.0  # we could technically not be at 0.0 at the beginning tho, but we don't care
         intermediate_state = self.states[-1]
         # this value does not actually matter since it is redefined in Step 3.3
@@ -261,7 +262,7 @@ class ClosedLoopRun:
 
             # STEP 3.1: get current state ================================================
             # at first iteration, we have already
-            if iteration > 0:
+            if self.iteration > 0:
                 if self.mil:
                     self.states.append(intermediate_state)
                     self.states[-1][2] = (
@@ -284,7 +285,7 @@ class ClosedLoopRun:
                 self.exit_reason = "Cross track error too high, aborting "
                 sys.stdout.write(self.exit_reason)
                 break
-            if iteration * self.sampling_time > self.max_time:
+            if self.iteration * self.sampling_time > self.max_time:
                 self.successful_run = False
                 self.exit_reason = "Max time reached, aborting "
                 sys.stdout.write(self.exit_reason)
@@ -308,7 +309,8 @@ class ClosedLoopRun:
                 stop_path_planning = perf_counter()
                 self._status_message(
                     "iteration {} : path planning time = {} ms".format(
-                        iteration, 1000 * (stop_path_planning - start_path_planning)
+                        self.iteration,
+                        1000 * (stop_path_planning - start_path_planning),
                     ),
                     verbosity_level=1,
                 )
@@ -337,7 +339,7 @@ class ClosedLoopRun:
             end_compute_control = perf_counter()
             compute_control_time = end_compute_control - start_compute_control
             self._status_message(
-                f"iteration {iteration} : solving time = {1000 * compute_control_time} ms",
+                f"iteration {self.iteration} : solving time = {1000 * compute_control_time} ms",
                 verbosity_level=1,
             )
             if self.mil:
@@ -384,12 +386,12 @@ class ClosedLoopRun:
                 end_send_control = perf_counter()
                 send_control_time = end_send_control - start_send_control
                 self._status_message(
-                    f"iteration {iteration} : send self.controls time = {1000 * send_control_time} ms",
+                    f"iteration {self.iteration} : send self.controls time = {1000 * send_control_time} ms",
                     verbosity_level=2,
                 )
 
             # STEP 3.7: [live dynamic mode] send data to publisher ========================
-            if self.plot_mode == PlotMode.LIVE_DYNAMIC and iteration % 10 == 0:
+            if self.plot_mode == PlotMode.LIVE_DYNAMIC and self.iteration % 10 == 0:
                 start_publish_live_dynamic = perf_counter()
                 publisher_instance.publish_msg(
                     {
@@ -427,7 +429,7 @@ class ClosedLoopRun:
                     end_publish_live_dynamic - start_publish_live_dynamic
                 )
                 self._status_message(
-                    f"iteration {iteration} : send self.controls time = {1000 *publish_live_dynamic_time} ms",
+                    f"iteration {self.iteration} : send self.controls time = {1000 * publish_live_dynamic_time} ms",
                     verbosity_level=2,
                 )
                 if self.mil:
@@ -458,16 +460,16 @@ class ClosedLoopRun:
                     ClosedLoopRun._sleep(to_sleep)
                 else:
                     self._status_message(
-                        f"iteration {iteration} : iteration took too long to execute, skipping sleep\n",
+                        f"iteration {self.iteration} : iteration took too long to execute, skipping sleep\n",
                         verbosity_level=2,
                     )
 
             self._status_message(
-                f"iteration {iteration} : iteration time = {1000 * (perf_counter()- start_iteration)} ms",
+                f"iteration {self.iteration} : iteration time = {1000 * (perf_counter()- start_iteration)} ms",
                 verbosity_level=2,
             )
 
-            iteration += 1
+            self.iteration += 1
 
         # convert all the sim data to numpy arrays
         self.states = np.array(self.states)
@@ -493,7 +495,7 @@ class ClosedLoopRun:
         # )
 
         self.compute_control_times = np.array(self.compute_control_times)
-        self.mission_time = iteration * self.sampling_time
+        self.mission_time = self.iteration * self.sampling_time
 
         # visualize simulation ===================================================
         if self.plot_mode is not None and self.plot_mode != PlotMode.LIVE_DYNAMIC:

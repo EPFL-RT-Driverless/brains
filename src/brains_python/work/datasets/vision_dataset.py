@@ -55,6 +55,8 @@ def bruh(mission: Mission, track_name: str, v_x_max: float, pitch: int):
     rel_cones_positions = []
 
     def callback(s: ClosedLoopRun):
+        if s.iteration % 5 != 0:
+            return
         start = perf_counter()
         camera_images.append(instance.fsds_client.get_image())
         lidar_data = instance.fsds_client.low_level_client.getLidarData()
@@ -66,15 +68,21 @@ def bruh(mission: Mission, track_name: str, v_x_max: float, pitch: int):
     instance.run()
 
     camera_images = np.array(camera_images)
-    lidar_point_clouds = np.array(lidar_point_clouds)
-    rel_cones_positions = np.array(rel_cones_positions)
+    lidar_point_clouds = {
+        "lidar_point_clouds_" + str(i): lidar_point_clouds[i]
+        for i in range(len(lidar_point_clouds))
+    }
+    rel_cones_positions = {
+        "rel_cones_positions_" + str(i): rel_cones_positions[i]
+        for i in range(len(rel_cones_positions))
+    }
 
     np.savez_compressed(
         f"data/vision_dataset/{track_name}_{v_x_max}_{pitch}.npz",
-        states=instance.states,
+        states=instance.states[::5],
         camera_images=camera_images,
-        lidar_point_clouds=lidar_point_clouds,
-        rel_cones_positions=rel_cones_positions,
+        **lidar_point_clouds,
+        **rel_cones_positions,
     )
 
 
