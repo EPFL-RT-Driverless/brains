@@ -294,14 +294,22 @@ class EKFSLAM:
         :param observations: shape (n, 2) array of cones positions in polar coordinates
         :param odometry: shape (3,), u=[v_x, v_y, r]
         :param phi_obs: float, orientation of the robot observed with IMU
-        :param odometry_uncertainty: shape (3,), uncertainty of the odometry
-        :param observations_uncertainties: shape (J, 2), uncertainty of the observations
+        :param odometry_uncertainty: shape (3,) or (3,3), uncertainty of the odometry
+        :param observations_uncertainties: shape (2,) or (2,2), uncertainty of the observations
         """
         # verify inputs
         assert len(observations.shape) == 2 and observations.shape[1] == 2
         assert odometry.shape == (self.nu,)
+        if len(odometry_uncertainty.shape) == 1:
+            odometry_uncertainty = np.diag(odometry_uncertainty)
+        assert odometry_uncertainty.shape == (self.nu, self.nu)
+        if len(observations_uncertainties.shape) == 1:
+            observations_uncertainties = np.diag(observations_uncertainties)
+        assert observations_uncertainties.shape == (2, 2)
         if dt is None:
             dt = self.dt
+        old_mu = self.mu.copy()
+        old_Sigma = self.Sigma.copy()
 
         # PREDICTION STEP =========================================================
         phi = self.mu[2]
@@ -322,26 +330,21 @@ class EKFSLAM:
                 [0.0, 0.0, 1.0],
             ]
         )
-        mu_bar = self.mu
-        mu_bar[:3] += np.array(
+        self.mu[:3] += np.array(
             [
                 (v_x * np.cos(phi) - v_y * np.sin(phi)) * dt,
                 (v_x * np.sin(phi) + v_y * np.cos(phi)) * dt,
                 r * dt,
             ]
         )
-        # mu_bar[2] = mod(mu_bar[2])
+        # self.mu[2] = mod(self.mu[2])
+        # self.mu[2] = mod(self.mu[2])
         tpr = G @ self.Sigma[:3, 3:]
-        Sigma_bar = np.block(
-            [
-                [
-                    G @ self.Sigma[:3, :3] @ G.T
-                    + V @ np.diag(odometry_uncertainty) @ V.T,
-                    tpr,
-                ],
-                [tpr.T, self.Sigma[3:, 3:]],
-            ]
+        self.Sigma[:3, :3] = (
+            G @ self.Sigma[:3, :3] @ G.T + V @ odometry_uncertainty @ V.T
         )
+        self.Sigma[:3, 3:] = tpr
+        self.Sigma[3:, :3] = tpr.T
 
         # DATA ASSOCIATION STEP =========================================================
         if cones_coordinates == "cartesian":
@@ -353,19 +356,25 @@ class EKFSLAM:
             ).T
 
         # TODO: add phi update before the association
+        # self.mu, self.Sigma = self.yaw_update(self.mu, self.Sigma, phi_obs)
+        # self.mu[2] = mod(self.mu[2])
 
         I = (self.nx - 3) // 2
         J = observations.shape[0]
         # TODO: filter the potential landmarks with a better criterion
         potential_landmarks_idx = np.arange(I)
         Iprime = len(potential_landmarks_idx)
+        if Iprime < J:
+            raise ValueError(
+                "We have removed too much landmarks or the car has left the track"
+            )
 
         # associate each cone to a landmark, i.e. create a list of tuples (cone, landmark)
         # where cone is in local polar coordinates and landmark is in global cartesian coordinates
-        delta = mu_bar[3:].reshape(-1, 2) - mu_bar[:2]  # shape (I, 2)
+        delta = self.mu[3:].reshape(-1, 2) - self.mu[:2]  # shape (I, 2)
         q = np.sum(delta**2, axis=1)  # shape (I,)
         z_hat = np.array(
-            [np.sqrt(q), mod(np.arctan2(delta[:, 1], delta[:, 0]) - mu_bar[2])]
+            [np.sqrt(q), mod(np.arctan2(delta[:, 1], delta[:, 0]) - self.mu[2])]
         ).T  # shape (I, 2)
         # Hs will contain the jacobians of the observation model wrt to the car pose and each landmark position,
         # more precisely Hs[i] = (H1, H2) where H1 is the jacobian wrt to the car pose and H2 is the jacobian wrt to
@@ -373,59 +382,52 @@ class EKFSLAM:
         Hs = []
         for i in potential_landmarks_idx:
             Hs.append(
-                (
-                    np.array(
+                np.array(
+                    [
                         [
-                            [
-                                -np.sqrt(q[i]) * delta[i, 0],
-                                -np.sqrt(q[i]) * delta[i, 1],
-                                0.0,
-                            ],
-                            [delta[i, 1], -delta[i, 0], -q[i]],
-                        ]
-                    ),
-                    np.array(
-                        [
-                            [np.sqrt(q[i]) * delta[i, 0], np.sqrt(q[i]) * delta[i, 1]],
-                            [-delta[i, 1], delta[i, 0]],
-                        ]
-                    ),
+                            -np.sqrt(q[i]) * delta[i, 0],
+                            -np.sqrt(q[i]) * delta[i, 1],
+                            0.0,
+                            np.sqrt(q[i]) * delta[i, 0],
+                            np.sqrt(q[i]) * delta[i, 1],
+                        ],
+                        [delta[i, 1], -delta[i, 0], -q[i], -delta[i, 1], delta[i, 0]],
+                    ]
                 )
             )
-        Sinv = np.linalg.inv(
-            np.array(
-                [
-                    np.hstack(Hs[i])
-                    @ np.block(
+        S = np.array(
+            [
+                Hs[i]
+                @ np.block(
+                    [
+                        [self.Sigma[:3, :3], self.Sigma[:3, 2 * i + 3 : 2 * i + 5]],
                         [
-                            [Sigma_bar[:3, :3], Sigma_bar[:3, 2 * i + 3 : 2 * i + 5]],
-                            [
-                                Sigma_bar[2 * i + 3 : 2 * i + 5, :3],
-                                Sigma_bar[2 * i + 3 : 2 * i + 5, 2 * i + 3 : 2 * i + 5],
-                            ],
-                        ]
-                    )
-                    @ np.hstack(Hs[i]).T
-                    + np.diag(observations_uncertainties[0])
-                    for i in range(I)
-                ]
-            )
+                            self.Sigma[2 * i + 3 : 2 * i + 5, :3],
+                            self.Sigma[2 * i + 3 : 2 * i + 5, 2 * i + 3 : 2 * i + 5],
+                        ],
+                    ]
+                )
+                @ Hs[i].T
+                + observations_uncertainties
+                for i in range(I)
+            ]
         )  # shape (I, 2, 2)
+        Sinv = np.linalg.inv(S)  # shape (I, 2, 2)
         delta_z = np.transpose(
             observations[:, None, :] - z_hat[None, :, :], (1, 0, 2)
         )  # shape (I, J, 2)
         delta_z[:, :, 1] = mod(delta_z[:, :, 1])  # shape (I, J, 2)
 
+        # filter the computed data
+        # TODO: do this before computing the mahalanobis distance
         delta_z = delta_z[potential_landmarks_idx]  # shape (I', J, 2)
+        S = S[potential_landmarks_idx]  # shape (I', 2, 2)
         Sinv = Sinv[potential_landmarks_idx]  # shape (I', 2, 2)
-        if Iprime < J:
-            raise ValueError(
-                "We have removed too much landmarks or the car has left the track"
-            )
 
         # compute the mahalanobis distance D of shape (I', J), i.e. D[i, j] = delta_z[i, j] @ Sinv[i] @ delta_z[i, j]
         D = np.einsum("ijk,ikl,ijl->ij", delta_z, Sinv, delta_z).T  # shape (J, I')
         row_id, col_id = linear_sum_assignment(D)
+        col_id = potential_landmarks_idx[col_id]
 
         associations = []
         bruh = [0, 0, 0]
@@ -437,13 +439,13 @@ class EKFSLAM:
                 bruh[2] += 1
                 # raise ValueError("new landmark detected")
                 continue
-                mu_bar = np.append(
-                    mu_bar,
+                self.mu = np.append(
+                    self.mu,
                     [
-                        mu_bar[0]
-                        + observations[j, 0] * np.cos(mu_bar[2] + observations[j, 1]),
-                        mu_bar[1]
-                        + observations[j, 0] * np.sin(mu_bar[2] + observations[j, 1]),
+                        self.mu[0]
+                        + observations[j, 0] * np.cos(self.mu[2] + observations[j, 1]),
+                        self.mu[1]
+                        + observations[j, 0] * np.sin(self.mu[2] + observations[j, 1]),
                     ],
                 )
                 H_inv_v = np.array(
@@ -452,36 +454,37 @@ class EKFSLAM:
                             1,
                             0,
                             -observations[j, 0]
-                            * np.sin(mu_bar[2] + observations[j, 1]),
+                            * np.sin(self.mu[2] + observations[j, 1]),
                         ],
                         [
                             0,
                             1,
-                            observations[j, 0] * np.cos(mu_bar[2] + observations[j, 1]),
+                            observations[j, 0]
+                            * np.cos(self.mu[2] + observations[j, 1]),
                         ],
                     ]
                 )
                 H_inv_j = np.array(
                     [
                         [
-                            np.cos(mu_bar[2] + observations[j, 1]),
+                            np.cos(self.mu[2] + observations[j, 1]),
                             -observations[j, 0]
-                            * np.sin(mu_bar[2] + observations[j, 1]),
+                            * np.sin(self.mu[2] + observations[j, 1]),
                         ],
                         [
-                            np.sin(mu_bar[2] + observations[j, 1]),
+                            np.sin(self.mu[2] + observations[j, 1]),
                             -observations[j, 0]
-                            * np.cos(mu_bar[2] + observations[j, 1]),
+                            * np.cos(self.mu[2] + observations[j, 1]),
                         ],
                     ]
                 )
                 H_inv = np.zeros((2, self.nx))
                 H_inv[:, :3] = H_inv_v
-                tpr = H_inv @ Sigma_bar
-                Sigma_bar = np.block(
+                tpr = H_inv @ self.Sigma
+                self.Sigma = np.block(
                     [
                         [
-                            Sigma_bar,
+                            self.Sigma,
                             tpr.T,
                         ],
                         [
@@ -498,36 +501,41 @@ class EKFSLAM:
                 # we discard the observation
                 bruh[1] += 1
                 pass
+        Jprime = len(associations)
         print(
             "{}/{} accepted, {}/{} discarded, {}/{} new".format(
                 bruh[0], len(row_id), bruh[1], len(row_id), bruh[2], len(row_id)
             )
         )
         # UPDATE STEP ======================================================================
-        Jprime = len(associations)
-        H = np.zeros((2 * J, self.nx))
-        delta_z_bis = np.zeros(2 * J)
-        R = np.diag(np.ravel(observations_uncertainties))
+        # H = np.zeros((2 * J, self.nx))
+        # delta_z_bis = np.zeros(2 * J)
+        # R = block_diag(*([observations_uncertainties] * J))
+        # for j, i in associations:
+        #     delta_z_bis[2 * j : 2 * j + 2] = delta_z[i, j]
+        #     H[2 * j : 2 * j + 2, :3] = Hs[i][0]
+        #     H[2 * j : 2 * j + 2, 2 * i + 3 : 2 * i + 5] = Hs[i][1]
+        #
+        # K = self.Sigma @ H.T @ np.linalg.inv(H @ self.Sigma @ H.T + R)  # Kalman gain
+        # self.mu = self.mu + K @ delta_z_bis
+        # self.Sigma = (np.eye(self.nx) - K @ H) @ self.Sigma
+
+        # new version
         for j, i in associations:
-            delta_z_bis[2 * j : 2 * j + 2] = delta_z[i, j]
-            H[2 * j : 2 * j + 2, :3] = np.array(
-                [
-                    [-np.sqrt(q[i]) * delta[i, 0], -np.sqrt(q[i]) * delta[i, 1], 0.0],
-                    [delta[i, 1], -delta[i, 0], -q[i]],
-                ]
+            K = (
+                np.hstack((self.Sigma[:, :3], self.Sigma[:, 2 * i + 3 : 2 * i + 5]))
+                @ Hs[i].T
+                @ Sinv[i]
             )
-            H[2 * j : 2 * j + 2, 2 * i + 3 : 2 * i + 5] = np.array(
-                [
-                    [np.sqrt(q[i]) * delta[i, 0], np.sqrt(q[i]) * delta[i, 1]],
-                    [-delta[i, 1], delta[i, 0]],
-                ]
-            )
-        K = Sigma_bar @ H.T @ np.linalg.inv(H @ Sigma_bar @ H.T + R)  # Kalman gain
-        self.mu = mu_bar + K @ delta_z_bis
-        self.Sigma = (np.eye(self.nx) - K @ H) @ Sigma_bar
+            self.mu += K @ delta_z[i, j]
+            self.mu[2] = mod(self.mu[2])
+            self.Sigma -= K @ S[i] @ K.T
 
         self.mu, self.Sigma = self.yaw_update(self.mu, self.Sigma, phi_obs)
         self.mu[2] = mod(self.mu[2])
+
+        if np.linalg.norm(self.mu[:2] - old_mu[:2]) > 1:
+            raise ValueError("Too far from the start")
 
         return self.mu, self.Sigma
 
@@ -537,8 +545,11 @@ class EKFSLAM:
         # K = Sigma @ H.T / (float(H @ Sigma @ H.T) + 0.0000001)  # Kalman gain
         # # simplify this
         # K = np.zeros(self.nx)
-        K = Sigma[:, 2] / (Sigma[2] + 1e-3)  # Kalman gain
-        return x + K * (phi_obs - x[2]), (np.eye(self.nx) - K * H) @ Sigma
+        K = Sigma[:, 2] / (Sigma[2, 2] + 1e-3)  # Kalman gain
+        # return x + K * (phi_obs - x[2]), (np.eye(self.nx) - K * H) @ Sigma
+        return x + K * mod(phi_obs - x[2]), Sigma - K[:, None] @ (
+            K[None, :] * (Sigma[2, 2] + 1e-3)
+        )
         # return x + K * mod(phi_obs - x[2]), (np.eye(self.nx) - K * H) @ Sigma
 
 
@@ -631,19 +642,19 @@ def run_slam():
     localizer = EKFSLAM(
         map=data["global_cones_positions"],
         initial_state=np.array([0.0, 0.0, np.pi / 2]),
-        initial_state_uncertainty=np.diag([0.01, 0.01, 0.01]),
-        initial_landmark_uncertainty=np.diag([0.01, 0.01]),
+        initial_state_uncertainty=0.0 * np.eye(3),
+        initial_landmark_uncertainty=0.0 * np.eye(2),
         dt=dt,
     )
     runtimes = []
     states = []
     true_states = []
-    for file_id in range(0, (len(data.files) - 5) // 2, int(dt / 0.01)):
-        # for file_id in range(100):
+    for file_id in range(0, (len(data.files) - 5), int(dt / 0.01)):
+        # print(file_id)
         true_state = data["states"][file_id]
         cones = data[f"rel_cones_positions_{file_id}"]
         start = perf_counter()
-        R = np.array([0.1, 0.1]) ** 2
+        R = np.array([0.5, 0.1]) ** 2
         Q = np.array([0.1, 0.1, 0.01]) ** 2
         state, _ = localizer.localize(
             observations=cones
@@ -651,10 +662,11 @@ def run_slam():
             odometry=true_state[-3:]
             + np.random.multivariate_normal(np.zeros(3), np.diag(Q)),
             phi_obs=true_state[2],
-            observations_uncertainties=np.vstack([R] * cones.shape[0]),
+            observations_uncertainties=R,
             odometry_uncertainty=Q,
             dt=dt,
         )
+
         end = perf_counter()
         runtimes.append(end - start)
         print("slam runtime: {} ms".format((end - start) * 1000))
@@ -663,11 +675,10 @@ def run_slam():
         if np.linalg.norm(state[:2] - true_state[:2]) > 3:
             print("Localization error too high, aborting")
             break
-        # sleep_sub_ms(dt)
 
-    states = np.array(states)
-    true_states = np.array(true_states)
-    runtimes = np.array(runtimes)
+    states = np.array(states[:-3])
+    true_states = np.array(true_states[:-3])
+    runtimes = np.array(runtimes[:-3])
     print("Average runtime: {} ms".format(np.mean(runtimes) * 1000))
     localization_error = np.linalg.norm(states[:, :2] - true_states[:, :2], axis=1)
     orientation_error = np.abs(states[:, 2] - true_states[:, 2])
