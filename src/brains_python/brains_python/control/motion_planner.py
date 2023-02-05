@@ -36,8 +36,7 @@ class MotionPlannerParams(PODS):
     def __init__(self, **kwargs):
         current_params, remaining_params = MotionPlannerParams._transform_dict(kwargs)
         for key, val in current_params.items():
-            if getattr(self, key) is None:
-                setattr(self, key, val)
+            setattr(self, key, val)
         super().__init__(**remaining_params)
 
 

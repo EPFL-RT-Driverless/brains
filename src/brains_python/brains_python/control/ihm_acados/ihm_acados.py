@@ -31,6 +31,7 @@ from ..controller import ControlReturnDev, ControllerParams, Controller, CarPara
 # 4 – qp solver failed
 # https://github.com/acados/acados/blob/dbc1c306ddaeefcb755d2afb289a25495446e008/acados/utils/types.h#L66
 
+
 # hpipm exit codes:
 # enum hpipm_status
 # 0 - SUCCESS, // found solution satisfying accuracy tolerance

@@ -1,4 +1,5 @@
 import argparse
+from time import perf_counter
 
 import numpy as np
 
@@ -47,35 +48,41 @@ def bruh(mission: Mission, track_name: str, v_x_max: float, pitch: int):
         simulation_mode=SimulationMode.SIMIL,
         max_time=50.0,
         delay=0.0,
-        verbosity_level=127,
+        verbosity_level=0,
     )
     camera_images = []
     lidar_point_clouds = []
-    lidar_poses = []
     rel_cones_positions = []
 
     def callback(s: ClosedLoopRun):
+        if s.iteration % 5 != 0:
+            return
+        start = perf_counter()
         camera_images.append(instance.fsds_client.get_image())
         lidar_data = instance.fsds_client.low_level_client.getLidarData()
         lidar_point_clouds.append(lidar_data.point_cloud)
-        lidar_poses.append(lidar_data.pose)
         rel_cones_positions.append(instance.fsds_client.find_cones(s.states[-1]))
+        print(f"Callback took {1000*(perf_counter() - start)} ms")
 
     instance.submit_callback(callback)
     instance.run()
 
     camera_images = np.array(camera_images)
-    lidar_point_clouds = np.array(lidar_point_clouds)
-    lidar_poses = np.array(lidar_poses)
-    rel_cones_positions = np.array(rel_cones_positions)
+    lidar_point_clouds = {
+        "lidar_point_clouds_" + str(i): lidar_point_clouds[i]
+        for i in range(len(lidar_point_clouds))
+    }
+    rel_cones_positions = {
+        "rel_cones_positions_" + str(i): rel_cones_positions[i]
+        for i in range(len(rel_cones_positions))
+    }
 
     np.savez_compressed(
         f"data/vision_dataset/{track_name}_{v_x_max}_{pitch}.npz",
-        states=instance.states,
+        states=instance.states[::5],
         camera_images=camera_images,
-        lidar_point_clouds=lidar_point_clouds,
-        lidar_poses=lidar_poses,
-        rel_cones_positions=rel_cones_positions,
+        **lidar_point_clouds,
+        **rel_cones_positions,
     )
 
 
@@ -97,10 +104,19 @@ if __name__ == "__main__":
         type=int,
         help="Pitch of camera and lidar",
     )
+    parser.add_argument(
+        "--v_x_max",
+        type=float,
+        help="Max longitudinal speed",
+        required=False,
+    )
     args = parser.parse_args()
     mission = Mission[args.mission]
     track = args.track
     pitch = args.pitch
-
-    for v_x_max in max_longitudinal_speeds[:]:
+    v_x_max = args.v_x_max
+    if v_x_max is not None:
         bruh(mission, track, v_x_max, pitch)
+    else:
+        for v_x_max in max_longitudinal_speeds[:]:
+            bruh(mission, track, v_x_max, pitch)

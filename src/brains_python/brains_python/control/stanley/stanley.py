@@ -66,7 +66,10 @@ class Stanley(Controller):
         ), "wrong current_control shape have {} but expected (2,)".format(
             current_control.shape
         )
-        assert XY_ref.shape == (self.horizon_size, 2,) or XY_ref.shape == (
+        assert XY_ref.shape == (
+            self.horizon_size,
+            2,
+        ) or XY_ref.shape == (
             2,
         ), "wrong reference_points shape have {} but expected ({},2) or (2,)".format(
             XY_ref.shape, self.horizon_size
