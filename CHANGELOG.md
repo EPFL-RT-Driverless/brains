@@ -1,3 +1,7 @@
+# v0.1.1
+
+added first implementations of `EKFLocalization` and `EKFSLAM` (not the more robust yet)
+
 # v0.1.0
 
 added all the code from [`control_module`](https://github.com/EPFL-RT-Driverless/control_module)
