@@ -354,19 +354,59 @@ class EKFSLAM:
 
         # TODO: add phi update before the association
 
-        # associate each cone to a landmark, i.e. create a list of tuples (cone, landmark)
-        # where cone is in local polar coordinates and landmark is in global cartesian coordinates
         I = (self.nx - 3) // 2
         J = observations.shape[0]
+        # TODO: filter the potential landmarks with a better criterion
+        potential_landmarks_idx = np.arange(I)
+        Iprime = len(potential_landmarks_idx)
+
+        # associate each cone to a landmark, i.e. create a list of tuples (cone, landmark)
+        # where cone is in local polar coordinates and landmark is in global cartesian coordinates
         delta = mu_bar[3:].reshape(-1, 2) - mu_bar[:2]  # shape (I, 2)
         q = np.sum(delta**2, axis=1)  # shape (I,)
         z_hat = np.array(
             [np.sqrt(q), mod(np.arctan2(delta[:, 1], delta[:, 0]) - mu_bar[2])]
         ).T  # shape (I, 2)
+        # Hs will contain the jacobians of the observation model wrt to the car pose and each landmark position,
+        # more precisely Hs[i] = (H1, H2) where H1 is the jacobian wrt to the car pose and H2 is the jacobian wrt to
+        # the ith landmark position
+        Hs = []
+        for i in potential_landmarks_idx:
+            Hs.append(
+                (
+                    np.array(
+                        [
+                            [
+                                -np.sqrt(q[i]) * delta[i, 0],
+                                -np.sqrt(q[i]) * delta[i, 1],
+                                0.0,
+                            ],
+                            [delta[i, 1], -delta[i, 0], -q[i]],
+                        ]
+                    ),
+                    np.array(
+                        [
+                            [np.sqrt(q[i]) * delta[i, 0], np.sqrt(q[i]) * delta[i, 1]],
+                            [-delta[i, 1], delta[i, 0]],
+                        ]
+                    ),
+                )
+            )
         Sinv = np.linalg.inv(
             np.array(
                 [
-                    Sigma_bar[2 * i + 3 : 2 * i + 5, 2 * i + 3 : 2 * i + 5]
+                    np.hstack(Hs[i])
+                    @ np.block(
+                        [
+                            [Sigma_bar[:3, :3], Sigma_bar[:3, 2 * i + 3 : 2 * i + 5]],
+                            [
+                                Sigma_bar[2 * i + 3 : 2 * i + 5, :3],
+                                Sigma_bar[2 * i + 3 : 2 * i + 5, 2 * i + 3 : 2 * i + 5],
+                            ],
+                        ]
+                    )
+                    @ np.hstack(Hs[i]).T
+                    + np.diag(observations_uncertainties[0])
                     for i in range(I)
                 ]
             )
@@ -376,11 +416,8 @@ class EKFSLAM:
         )  # shape (I, J, 2)
         delta_z[:, :, 1] = mod(delta_z[:, :, 1])  # shape (I, J, 2)
 
-        # TODO: filter the potential landmarks with a better criterion
-        potential_landmarks_idx = np.arange(I)
         delta_z = delta_z[potential_landmarks_idx]  # shape (I', J, 2)
         Sinv = Sinv[potential_landmarks_idx]  # shape (I', 2, 2)
-        Iprime = delta_z.shape[0]
         if Iprime < J:
             raise ValueError(
                 "We have removed too much landmarks or the car has left the track"
