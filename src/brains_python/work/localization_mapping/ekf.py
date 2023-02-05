@@ -430,15 +430,14 @@ class EKFSLAM:
         col_id = potential_landmarks_idx[col_id]
 
         associations = []
-        bruh = [0, 0, 0]
+        landmark_types_counts = [0, 0, 0]
         for j, i in zip(row_id, col_id):
             if D[j, i] < self.chi2_95:
-                bruh[0] += 1
+                landmark_types_counts[0] += 1
                 associations.append((j, i))
             elif D[j, i] > self.chi2_99:
-                bruh[2] += 1
-                # raise ValueError("new landmark detected")
-                continue
+                landmark_types_counts[2] += 1
+                # continue
                 self.mu = np.append(
                     self.mu,
                     [
@@ -478,9 +477,7 @@ class EKFSLAM:
                         ],
                     ]
                 )
-                H_inv = np.zeros((2, self.nx))
-                H_inv[:, :3] = H_inv_v
-                tpr = H_inv @ self.Sigma
+                tpr = H_inv_v @ self.Sigma[:3, :]
                 self.Sigma = np.block(
                     [
                         [
@@ -489,38 +486,28 @@ class EKFSLAM:
                         ],
                         [
                             tpr,
-                            tpr @ H_inv.T
-                            + H_inv_j
-                            @ np.diag(observations_uncertainties[j])
-                            @ H_inv_j.T,
+                            H_inv_v @ self.Sigma[:3, :3] @ H_inv_v.T
+                            + H_inv_j @ observations_uncertainties @ H_inv_j.T,
                         ],
                     ]
                 )
                 self.nx += 2
             else:
                 # we discard the observation
-                bruh[1] += 1
+                landmark_types_counts[1] += 1
                 pass
         Jprime = len(associations)
         print(
             "{}/{} accepted, {}/{} discarded, {}/{} new".format(
-                bruh[0], len(row_id), bruh[1], len(row_id), bruh[2], len(row_id)
+                landmark_types_counts[0],
+                len(row_id),
+                landmark_types_counts[1],
+                len(row_id),
+                landmark_types_counts[2],
+                len(row_id),
             )
         )
         # UPDATE STEP ======================================================================
-        # H = np.zeros((2 * J, self.nx))
-        # delta_z_bis = np.zeros(2 * J)
-        # R = block_diag(*([observations_uncertainties] * J))
-        # for j, i in associations:
-        #     delta_z_bis[2 * j : 2 * j + 2] = delta_z[i, j]
-        #     H[2 * j : 2 * j + 2, :3] = Hs[i][0]
-        #     H[2 * j : 2 * j + 2, 2 * i + 3 : 2 * i + 5] = Hs[i][1]
-        #
-        # K = self.Sigma @ H.T @ np.linalg.inv(H @ self.Sigma @ H.T + R)  # Kalman gain
-        # self.mu = self.mu + K @ delta_z_bis
-        # self.Sigma = (np.eye(self.nx) - K @ H) @ self.Sigma
-
-        # new version
         for j, i in associations:
             K = (
                 np.hstack((self.Sigma[:, :3], self.Sigma[:, 2 * i + 3 : 2 * i + 5]))
@@ -542,15 +529,10 @@ class EKFSLAM:
     def yaw_update(self, x, Sigma, phi_obs):
         H = np.zeros(self.nx)
         H[2] = 1.0
-        # K = Sigma @ H.T / (float(H @ Sigma @ H.T) + 0.0000001)  # Kalman gain
-        # # simplify this
-        # K = np.zeros(self.nx)
         K = Sigma[:, 2] / (Sigma[2, 2] + 1e-3)  # Kalman gain
-        # return x + K * (phi_obs - x[2]), (np.eye(self.nx) - K * H) @ Sigma
         return x + K * mod(phi_obs - x[2]), Sigma - K[:, None] @ (
             K[None, :] * (Sigma[2, 2] + 1e-3)
         )
-        # return x + K * mod(phi_obs - x[2]), (np.eye(self.nx) - K * H) @ Sigma
 
 
 def run():
@@ -627,7 +609,8 @@ def run():
 
 def run_slam():
     dt = 0.01
-    filename = "fsds_competition_1_10.0.npz"
+    track_name = "fsds_competition_2"
+    filename = f"{track_name}_10.0.npz"
     # noinspection PyTypeChecker
     data: np.lib.npyio.NpzFile = np.load(
         os.path.abspath(
@@ -650,7 +633,6 @@ def run_slam():
     states = []
     true_states = []
     for file_id in range(0, (len(data.files) - 5), int(dt / 0.01)):
-        # print(file_id)
         true_state = data["states"][file_id]
         cones = data[f"rel_cones_positions_{file_id}"]
         start = perf_counter()
@@ -690,7 +672,7 @@ def run_slam():
             np.mean(orientation_error), np.std(orientation_error)
         ),
     )
-    track = tdb.load_track("fsds_competition_1")
+    track = tdb.load_track(track_name)
     plot_cones(
         track.blue_cones,
         track.yellow_cones,
