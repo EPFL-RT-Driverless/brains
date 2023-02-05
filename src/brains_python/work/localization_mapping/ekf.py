@@ -260,13 +260,14 @@ class EKFSLAM:
 
     mu: np.ndarray
     Sigma: np.ndarray
-    dt: float
+    sampling_time: float
+    data_association_statistics: list[Union[int, float]]
 
     def __init__(
         self,
         initial_state: np.ndarray,
         initial_state_uncertainty: np.ndarray,
-        dt: float,
+        sampling_time: float,
         initial_landmark_uncertainty: np.ndarray,
         map: np.ndarray = np.empty((0, 2)),
     ):
@@ -278,40 +279,16 @@ class EKFSLAM:
                 + [initial_landmark_uncertainty] * map.shape[0]
             )
         )
-        self.dt = dt
+        self.sampling_time = sampling_time
+        self.data_association_statistics = []
 
-    def localize(
-        self,
-        observations: np.ndarray,
-        odometry: np.ndarray,
-        phi_obs: float,
-        odometry_uncertainty: np.ndarray,
-        observations_uncertainties: np.ndarray,
-        dt: float = None,
-        cones_coordinates: str = "polar",
-    ) -> tuple[Union[ndarray, ndarray], Union[ndarray, ndarray], list[int]]:
-        """
-        :param observations: shape (n, 2) array of cones positions in polar coordinates
-        :param odometry: shape (3,), u=[v_x, v_y, r]
-        :param phi_obs: float, orientation of the robot observed with IMU
-        :param odometry_uncertainty: shape (3,) or (3,3), uncertainty of the odometry
-        :param observations_uncertainties: shape (2,) or (2,2), uncertainty of the observations
-        """
-        # verify inputs
-        assert len(observations.shape) == 2 and observations.shape[1] == 2
-        assert odometry.shape == (self.nu,)
-        if len(odometry_uncertainty.shape) == 1:
-            odometry_uncertainty = np.diag(odometry_uncertainty)
-        assert odometry_uncertainty.shape == (self.nu, self.nu)
-        if len(observations_uncertainties.shape) == 1:
-            observations_uncertainties = np.diag(observations_uncertainties)
-        assert observations_uncertainties.shape == (2, 2)
-        if dt is None:
-            dt = self.dt
-        old_mu = self.mu.copy()
-        old_Sigma = self.Sigma.copy()
+    @property
+    def map(self) -> np.ndarray:
+        return self.mu[3:].reshape((-1, 2))
 
-        # PREDICTION STEP =========================================================
+    def prediction_step(
+        self, odometry: np.ndarray, odometry_uncertainty: np.ndarray, dt: float
+    ):
         phi = self.mu[2]
         v_x = odometry[0]
         v_y = odometry[1]
@@ -337,8 +314,7 @@ class EKFSLAM:
                 r * dt,
             ]
         )
-        # self.mu[2] = mod(self.mu[2])
-        # self.mu[2] = mod(self.mu[2])
+        self.mu[2] = mod(self.mu[2])
         tpr = G @ self.Sigma[:3, 3:]
         self.Sigma[:3, :3] = (
             G @ self.Sigma[:3, :3] @ G.T + V @ odometry_uncertainty @ V.T
@@ -346,7 +322,39 @@ class EKFSLAM:
         self.Sigma[:3, 3:] = tpr
         self.Sigma[3:, :3] = tpr.T
 
-        # preliminary update of the yaw
+    def localize(
+        self,
+        observations: np.ndarray,
+        odometry: np.ndarray,
+        phi_obs: float,
+        odometry_uncertainty: np.ndarray,
+        observations_uncertainties: np.ndarray,
+        sampling_time: float = None,
+        cones_coordinates: str = "polar",
+    ) -> tuple[Union[ndarray, ndarray], Union[ndarray, ndarray], list[int]]:
+        """
+        :param observations: shape (n, 2) array of cones positions in polar coordinates
+        :param odometry: shape (3,), u=[v_x, v_y, r]
+        :param phi_obs: float, orientation of the robot observed with IMU
+        :param odometry_uncertainty: shape (3,) or (3,3), uncertainty of the odometry
+        :param observations_uncertainties: shape (2,) or (2,2), uncertainty of the observations
+        """
+        # verify inputs
+        assert len(observations.shape) == 2 and observations.shape[1] == 2
+        assert odometry.shape == (self.nu,)
+        if len(odometry_uncertainty.shape) == 1:
+            odometry_uncertainty = np.diag(odometry_uncertainty)
+        assert odometry_uncertainty.shape == (self.nu, self.nu)
+        if len(observations_uncertainties.shape) == 1:
+            observations_uncertainties = np.diag(observations_uncertainties)
+        assert observations_uncertainties.shape == (2, 2)
+        if sampling_time is None:
+            sampling_time = self.sampling_time
+
+        # PREDICTION STEP =========================================================
+        self.prediction_step(odometry, odometry_uncertainty, sampling_time)
+
+        # PRELIMINARY YAW UPDATE =========================================================
         self.mu, self.Sigma = self.yaw_update(self.mu, self.Sigma, phi_obs)
         self.mu[2] = mod(self.mu[2])
 
@@ -359,179 +367,159 @@ class EKFSLAM:
                 ]
             ).T
 
-        # TODO: add phi update before the association
-        # self.mu, self.Sigma = self.yaw_update(self.mu, self.Sigma, phi_obs)
-        # self.mu[2] = mod(self.mu[2])
+        I = (self.nx - 3) // 2  # number of known landmarks
+        J = observations.shape[0]  # number of observations
 
-        I = (self.nx - 3) // 2
-        J = observations.shape[0]
-        # TODO: filter the potential landmarks with a better criterion
-        potential_landmarks_idx = np.arange(I)
-        Iprime = len(potential_landmarks_idx)
-        if Iprime < J:
-            raise ValueError(
-                "We have removed too much landmarks or the car has left the track"
-            )
-
-        # associate each cone to a landmark, i.e. create a list of tuples (cone, landmark)
-        # where cone is in local polar coordinates and landmark is in global cartesian coordinates
-        delta = self.mu[3:].reshape(-1, 2) - self.mu[:2]  # shape (I, 2)
-        q = np.sum(delta**2, axis=1)  # shape (I,)
-        z_hat = np.array(
-            [np.sqrt(q), mod(np.arctan2(delta[:, 1], delta[:, 0]) - self.mu[2])]
-        ).T  # shape (I, 2)
-        # Hs will contain the jacobians of the observation model wrt to the car pose and each landmark position,
-        # more precisely Hs[i] = (H1, H2) where H1 is the jacobian wrt to the car pose and H2 is the jacobian wrt to
-        # the ith landmark position
-        Hs = []
-        for i in potential_landmarks_idx:
-            Hs.append(
-                np.array(
-                    [
-                        [
-                            -np.sqrt(q[i]) * delta[i, 0],
-                            -np.sqrt(q[i]) * delta[i, 1],
-                            0.0,
-                            np.sqrt(q[i]) * delta[i, 0],
-                            np.sqrt(q[i]) * delta[i, 1],
-                        ],
-                        [delta[i, 1], -delta[i, 0], -q[i], -delta[i, 1], delta[i, 0]],
-                    ]
-                )
-            )
-        S = np.array(
-            [
-                Hs[i]
-                @ np.block(
-                    [
-                        [self.Sigma[:3, :3], self.Sigma[:3, 2 * i + 3 : 2 * i + 5]],
-                        [
-                            self.Sigma[2 * i + 3 : 2 * i + 5, :3],
-                            self.Sigma[2 * i + 3 : 2 * i + 5, 2 * i + 3 : 2 * i + 5],
-                        ],
-                    ]
-                )
-                @ Hs[i].T
-                + observations_uncertainties
-                for i in range(I)
-            ]
-        )  # shape (I, 2, 2)
-        Sinv = np.linalg.inv(S)  # shape (I, 2, 2)
-        delta_z = np.transpose(
-            observations[:, None, :] - z_hat[None, :, :], (1, 0, 2)
-        )  # shape (I, J, 2)
-        delta_z[:, :, 1] = mod(delta_z[:, :, 1])  # shape (I, J, 2)
-
-        # filter the computed data
-        # TODO: do this before computing the mahalanobis distance to avoid useless computations
-        delta_z = delta_z[potential_landmarks_idx]  # shape (I', J, 2)
-        S = S[potential_landmarks_idx]  # shape (I', 2, 2)
-        Sinv = Sinv[potential_landmarks_idx]  # shape (I', 2, 2)
-
-        # compute the mahalanobis distance D of shape (I', J), i.e. D[i, j] = delta_z[i, j] @ Sinv[i] @ delta_z[i, j]
-        D = np.einsum("ijk,ikl,ijl->ij", delta_z, Sinv, delta_z).T  # shape (J, I')
-        row_id, col_id = linear_sum_assignment(D)
-        col_id = potential_landmarks_idx[col_id]
-
-        associations = []
-        landmark_types_counts = [0, 0, 0]
-        for j, i in zip(row_id, col_id):
-            if D[j, i] < self.chi2_95:
-                landmark_types_counts[0] += 1
-                associations.append((j, i))
-            elif D[j, i] > self.chi2_99:
-                landmark_types_counts[2] += 1
-                # continue
-                self.mu = np.append(
-                    self.mu,
-                    [
-                        self.mu[0]
-                        + observations[j, 0] * np.cos(self.mu[2] + observations[j, 1]),
-                        self.mu[1]
-                        + observations[j, 0] * np.sin(self.mu[2] + observations[j, 1]),
-                    ],
-                )
-                H_inv_v = np.array(
-                    [
-                        [
-                            1,
-                            0,
-                            -observations[j, 0]
-                            * np.sin(self.mu[2] + observations[j, 1]),
-                        ],
-                        [
-                            0,
-                            1,
-                            observations[j, 0]
-                            * np.cos(self.mu[2] + observations[j, 1]),
-                        ],
-                    ]
-                )
-                H_inv_j = np.array(
-                    [
-                        [
-                            np.cos(self.mu[2] + observations[j, 1]),
-                            -observations[j, 0]
-                            * np.sin(self.mu[2] + observations[j, 1]),
-                        ],
-                        [
-                            np.sin(self.mu[2] + observations[j, 1]),
-                            -observations[j, 0]
-                            * np.cos(self.mu[2] + observations[j, 1]),
-                        ],
-                    ]
-                )
-                tpr = H_inv_v @ self.Sigma[:3, :]
-                self.Sigma = np.block(
-                    [
-                        [
-                            self.Sigma,
-                            tpr.T,
-                        ],
-                        [
-                            tpr,
-                            H_inv_v @ self.Sigma[:3, :3] @ H_inv_v.T
-                            + H_inv_j @ observations_uncertainties @ H_inv_j.T,
-                        ],
-                    ]
-                )
-                self.nx += 2
+        if I < J:
+            # we are still initalizing the map
+            for j in range(J):
+                self.add_landmark(observations[j])
+            self.data_association_statistics = [0.0, 0.0, 1.0]
+        else:
+            # TODO: filter the potential landmarks with a better criterion
+            potential_landmarks_idx = np.arange(I)
+            # angles = mod(
+            #     np.arctan2(
+            #         self.mu[3:].reshape(-1, 2)[:, 1] - self.mu[1],
+            #         self.mu[3:].reshape(-1, 2)[:, 0] - self.mu[0],
+            #     )
+            # )
+            # potential_landmarks_idx = np.where(
+            #     (
+            #         np.linalg.norm(self.mu[3:].reshape(-1, 2) - self.mu[:2], axis=1)
+            #         < 20.0 + 3 * observations_uncertainties[0, 0]
+            #     )
+            #     # & (
+            #     #     angles
+            #     #     > max(
+            #     #         -np.pi, -np.pi / 2 - 3 * np.sqrt(observations_uncertainties[1, 1])
+            #     #     )
+            #     # )
+            #     # & (
+            #     #     angles
+            #     #     < min(np.pi, np.pi / 2 + 3 * np.sqrt(observations_uncertainties[1, 1]))
+            #     # )
+            # )[0]
+            Iprime = len(
+                potential_landmarks_idx
+            )  # number of known landmarks after filtering
+            if Iprime < J:
+                # we have removed too many landmarks to properly perform the data association so we consider that all
+                # observations correspond to new landmarks
+                for j in range(J):
+                    self.add_landmark(observations[j])
+                self.data_association_statistics = [0.0, 0.0, 1.0]
             else:
-                # we discard the observation
-                landmark_types_counts[1] += 1
-                pass
-        Jprime = len(associations)
-        print(
-            "{}/{} accepted, {}/{} discarded, {}/{} new".format(
-                landmark_types_counts[0],
-                J,
-                landmark_types_counts[1],
-                J,
-                landmark_types_counts[2],
-                J,
-            )
-        )
-        landmark_types_counts[0] /= J
-        landmark_types_counts[1] /= J
-        landmark_types_counts[2] /= J
-        # UPDATE STEP ======================================================================
-        for j, i in associations:
-            K = (
-                np.hstack((self.Sigma[:, :3], self.Sigma[:, 2 * i + 3 : 2 * i + 5]))
-                @ Hs[i].T
-                @ Sinv[i]
-            )
-            self.mu += K @ delta_z[i, j]
-            self.mu[2] = mod(self.mu[2])
-            self.Sigma -= K @ S[i] @ K.T
+                delta = self.mu[3:].reshape(-1, 2) - self.mu[:2]  # shape (I, 2)
+                q = np.sum(delta**2, axis=1)  # shape (I,)
+                z_hat = np.array(
+                    [np.sqrt(q), mod(np.arctan2(delta[:, 1], delta[:, 0]) - self.mu[2])]
+                ).T  # shape (I, 2)
+                Hs = [
+                    np.array(
+                        [
+                            [
+                                -np.sqrt(q[i]) * delta[i, 0],
+                                -np.sqrt(q[i]) * delta[i, 1],
+                                0.0,
+                                np.sqrt(q[i]) * delta[i, 0],
+                                np.sqrt(q[i]) * delta[i, 1],
+                            ],
+                            [
+                                delta[i, 1],
+                                -delta[i, 0],
+                                -q[i],
+                                -delta[i, 1],
+                                delta[i, 0],
+                            ],
+                        ]
+                    )
+                    for i in potential_landmarks_idx
+                ]  # list of shape (Iprime, 2, 5)
+                S = np.array(
+                    [
+                        Hs[i]
+                        @ np.block(
+                            [
+                                [
+                                    self.Sigma[:3, :3],
+                                    self.Sigma[:3, 2 * i + 3 : 2 * i + 5],
+                                ],
+                                [
+                                    self.Sigma[2 * i + 3 : 2 * i + 5, :3],
+                                    self.Sigma[
+                                        2 * i + 3 : 2 * i + 5, 2 * i + 3 : 2 * i + 5
+                                    ],
+                                ],
+                            ]
+                        )
+                        @ Hs[i].T
+                        + observations_uncertainties
+                        for i in range(Iprime)
+                    ]
+                )  # shape (I', 2, 2)
+                Sinv = np.linalg.inv(S)  # shape (I', 2, 2)
+                delta_z = np.transpose(
+                    observations[:, None, :] - z_hat[None, potential_landmarks_idx, :],
+                    (1, 0, 2),
+                )  # shape (I', J, 2)
+                delta_z[:, :, 1] = mod(delta_z[:, :, 1])  # shape (I', J, 2)
 
+                # compute the mahalanobis distance: D[j, i] = delta_z[i, j] @ Sinv[i] @ delta_z[i, j]
+                D = np.einsum(
+                    "ijk,ikl,ijl->ij", delta_z, Sinv, delta_z
+                ).T  # shape (J, I')
+                observation_id, landmark_id = linear_sum_assignment(D)
+
+                associations = []
+                self.data_association_statistics = [0, 0, 0]
+                for j, i in zip(observation_id, landmark_id):
+                    if D[j, i] < self.chi2_95:
+                        # observation i has been associated with landmark j
+                        self.data_association_statistics[0] += 1
+                        associations.append((j, i))
+                    elif D[j, i] > self.chi2_99:
+                        # observation i has not been associated with any landmark so we create a new one
+                        self.data_association_statistics[2] += 1
+                        self.add_landmark(
+                            observations[j, :], observations_uncertainties
+                        )
+                    else:
+                        # observation i has been discarded because it is not a good enough match
+                        self.data_association_statistics[1] += 1
+
+                print(
+                    "{}/{} accepted, {}/{} discarded, {}/{} new".format(
+                        self.data_association_statistics[0],
+                        J,
+                        self.data_association_statistics[1],
+                        J,
+                        self.data_association_statistics[2],
+                        J,
+                    )
+                )
+                self.data_association_statistics = [
+                    x / J for x in self.data_association_statistics
+                ]
+
+                # CONES UPDATE STEP ======================================================================
+                for j, i in associations:
+                    K = (
+                        np.hstack(
+                            (self.Sigma[:, :3], self.Sigma[:, 2 * i + 3 : 2 * i + 5])
+                        )
+                        @ Hs[i].T
+                        @ Sinv[i]
+                    )
+                    self.mu += K @ delta_z[i, j]
+                    self.mu[2] = mod(self.mu[2])
+                    self.Sigma -= K @ S[i] @ K.T
+
+        # YAW UPDATE STEP ======================================================================
         self.mu, self.Sigma = self.yaw_update(self.mu, self.Sigma, phi_obs)
         self.mu[2] = mod(self.mu[2])
 
-        if np.linalg.norm(self.mu[:2] - old_mu[:2]) > 1:
-            raise ValueError("Too far from the start")
-
-        return self.mu, self.Sigma, landmark_types_counts
+        return self.mu, self.Sigma, self.data_association_statistics
 
     def yaw_update(self, x, Sigma, phi_obs):
         H = np.zeros(self.nx)
@@ -540,6 +528,61 @@ class EKFSLAM:
         return x + K * mod(phi_obs - x[2]), Sigma - K[:, None] @ (
             K[None, :] * (Sigma[2, 2] + 1e-3)
         )
+
+    def add_landmark(
+        self,
+        observation: np.ndarray,
+        observations_uncertainties: np.ndarray = 1e-2 * np.eye(2),
+    ):
+        """Add a new landmark to the state vector and covariance matrix."""
+        self.mu = np.append(
+            self.mu,
+            [
+                self.mu[0] + observation[0] * np.cos(self.mu[2] + observation[1]),
+                self.mu[1] + observation[0] * np.sin(self.mu[2] + observation[1]),
+            ],
+        )
+        H_inv_v = np.array(
+            [
+                [
+                    1,
+                    0,
+                    -observation[0] * np.sin(self.mu[2] + observation[1]),
+                ],
+                [
+                    0,
+                    1,
+                    observation[0] * np.cos(self.mu[2] + observation[1]),
+                ],
+            ]
+        )
+        H_inv_j = np.array(
+            [
+                [
+                    np.cos(self.mu[2] + observation[1]),
+                    -observation[0] * np.sin(self.mu[2] + observation[1]),
+                ],
+                [
+                    np.sin(self.mu[2] + observation[1]),
+                    -observation[0] * np.cos(self.mu[2] + observation[1]),
+                ],
+            ]
+        )
+        tpr = H_inv_v @ self.Sigma[:3, :]
+        self.Sigma = np.block(
+            [
+                [
+                    self.Sigma,
+                    tpr.T,
+                ],
+                [
+                    tpr,
+                    H_inv_v @ self.Sigma[:3, :3] @ H_inv_v.T
+                    + H_inv_j @ observations_uncertainties @ H_inv_j.T,
+                ],
+            ]
+        )
+        self.nx += 2
 
 
 def run():
@@ -616,8 +659,8 @@ def run():
 
 def run_slam():
     dt = 0.01
-    track_name = "fsds_competition_2"
-    filename = f"{track_name}_10.0.npz"
+    track_name = "fsds_competition_1"
+    filename = f"{track_name}_5.0.npz"
     # noinspection PyTypeChecker
     data: np.lib.npyio.NpzFile = np.load(
         os.path.abspath(
@@ -630,12 +673,14 @@ def run_slam():
     )
     print(data.files[:6])
     localizer = EKFSLAM(
-        map=data["global_cones_positions"],
+        # map=data["global_cones_positions"],
         initial_state=np.array([0.0, 0.0, np.pi / 2]),
         initial_state_uncertainty=0.0 * np.eye(3),
-        initial_landmark_uncertainty=0.0 * np.eye(2),
-        dt=dt,
+        initial_landmark_uncertainty=1e-1 * np.eye(2),
+        sampling_time=dt,
     )
+    tpr = data[f"rel_cones_positions_{0}"]
+    [localizer.add_landmark(tpr[i]) for i in range(tpr.shape[0])]
     runtimes = []
     states = []
     true_states = []
@@ -644,7 +689,7 @@ def run_slam():
         true_state = data["states"][file_id]
         cones = data[f"rel_cones_positions_{file_id}"]
         start = perf_counter()
-        R = np.array([0.5, 0.1]) ** 2
+        R = np.array([0.0, 0.1]) ** 2
         Q = np.array([0.1, 0.1, 0.01]) ** 2
         state, _, counts = localizer.localize(
             observations=cones
@@ -654,7 +699,7 @@ def run_slam():
             phi_obs=true_state[2],
             observations_uncertainties=R,
             odometry_uncertainty=Q,
-            dt=dt,
+            sampling_time=dt,
         )
 
         end = perf_counter()
@@ -696,6 +741,7 @@ def run_slam():
         track.small_orange_cones,
         show=False,
     )
+    plt.scatter(localizer.map[:, 0], localizer.map[:, 1], c="r", label="Map")
     plt.plot(states[:, 0], states[:, 1], "b-", label="Estimated trajectory")
     plt.plot(true_states[:, 0], true_states[:, 1], "g-", label="True trajectory")
     plt.legend()
