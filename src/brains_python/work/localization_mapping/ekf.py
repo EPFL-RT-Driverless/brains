@@ -1,5 +1,5 @@
 import os.path
-from typing import Tuple, Union
+from typing import Tuple, Union, List
 
 from numpy import ndarray
 from scipy.linalg import block_diag
@@ -289,7 +289,7 @@ class EKFSLAM:
         observations_uncertainties: np.ndarray,
         dt: float = None,
         cones_coordinates: str = "polar",
-    ) -> tuple[Union[ndarray, ndarray], Union[ndarray, ndarray]]:
+    ) -> tuple[Union[ndarray, ndarray], Union[ndarray, ndarray], list[int]]:
         """
         :param observations: shape (n, 2) array of cones positions in polar coordinates
         :param odometry: shape (3,), u=[v_x, v_y, r]
@@ -345,6 +345,10 @@ class EKFSLAM:
         )
         self.Sigma[:3, 3:] = tpr
         self.Sigma[3:, :3] = tpr.T
+
+        # preliminary update of the yaw
+        self.mu, self.Sigma = self.yaw_update(self.mu, self.Sigma, phi_obs)
+        self.mu[2] = mod(self.mu[2])
 
         # DATA ASSOCIATION STEP =========================================================
         if cones_coordinates == "cartesian":
@@ -419,7 +423,7 @@ class EKFSLAM:
         delta_z[:, :, 1] = mod(delta_z[:, :, 1])  # shape (I, J, 2)
 
         # filter the computed data
-        # TODO: do this before computing the mahalanobis distance
+        # TODO: do this before computing the mahalanobis distance to avoid useless computations
         delta_z = delta_z[potential_landmarks_idx]  # shape (I', J, 2)
         S = S[potential_landmarks_idx]  # shape (I', 2, 2)
         Sinv = Sinv[potential_landmarks_idx]  # shape (I', 2, 2)
@@ -500,13 +504,16 @@ class EKFSLAM:
         print(
             "{}/{} accepted, {}/{} discarded, {}/{} new".format(
                 landmark_types_counts[0],
-                len(row_id),
+                J,
                 landmark_types_counts[1],
-                len(row_id),
+                J,
                 landmark_types_counts[2],
-                len(row_id),
+                J,
             )
         )
+        landmark_types_counts[0] /= J
+        landmark_types_counts[1] /= J
+        landmark_types_counts[2] /= J
         # UPDATE STEP ======================================================================
         for j, i in associations:
             K = (
@@ -524,7 +531,7 @@ class EKFSLAM:
         if np.linalg.norm(self.mu[:2] - old_mu[:2]) > 1:
             raise ValueError("Too far from the start")
 
-        return self.mu, self.Sigma
+        return self.mu, self.Sigma, landmark_types_counts
 
     def yaw_update(self, x, Sigma, phi_obs):
         H = np.zeros(self.nx)
@@ -632,13 +639,14 @@ def run_slam():
     runtimes = []
     states = []
     true_states = []
+    landmark_types_counts = []
     for file_id in range(0, (len(data.files) - 5), int(dt / 0.01)):
         true_state = data["states"][file_id]
         cones = data[f"rel_cones_positions_{file_id}"]
         start = perf_counter()
         R = np.array([0.5, 0.1]) ** 2
         Q = np.array([0.1, 0.1, 0.01]) ** 2
-        state, _ = localizer.localize(
+        state, _, counts = localizer.localize(
             observations=cones
             + np.random.multivariate_normal(np.zeros(2), np.diag(R), cones.shape[0]),
             odometry=true_state[-3:]
@@ -652,15 +660,18 @@ def run_slam():
         end = perf_counter()
         runtimes.append(end - start)
         print("slam runtime: {} ms".format((end - start) * 1000))
+        landmark_types_counts.append(counts)
         states.append(state[:3])
         true_states.append(true_state)
         if np.linalg.norm(state[:2] - true_state[:2]) > 3:
             print("Localization error too high, aborting")
             break
 
-    states = np.array(states[:-3])
-    true_states = np.array(true_states[:-3])
-    runtimes = np.array(runtimes[:-3])
+    states = np.array(states)
+    true_states = np.array(true_states)
+    runtimes = np.array(runtimes)
+    landmark_types_counts = np.array(landmark_types_counts)
+
     print("Average runtime: {} ms".format(np.mean(runtimes) * 1000))
     localization_error = np.linalg.norm(states[:, :2] - true_states[:, :2], axis=1)
     orientation_error = np.abs(states[:, 2] - true_states[:, 2])
@@ -671,6 +682,11 @@ def run_slam():
         "orientation error: {:.3f} ± {:.3f} rad".format(
             np.mean(orientation_error), np.std(orientation_error)
         ),
+    )
+    print(
+        "Average landmark types counts: {:.3f} % associated, {:.3f}% discarded, {:.3f}% new".format(
+            *np.mean(landmark_types_counts, axis=0)
+        )
     )
     track = tdb.load_track(track_name)
     plot_cones(
