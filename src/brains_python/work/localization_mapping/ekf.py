@@ -1,19 +1,17 @@
 import os.path
-from typing import Tuple, Union, List
-
-from numpy import ndarray
-from scipy.linalg import block_diag
-from scipy.stats.distributions import chi2
 from time import perf_counter
+from typing import Union
 
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.spatial import distance_matrix
+from numpy import ndarray
+from scipy.linalg import block_diag
 from scipy.optimize import linear_sum_assignment
+from scipy.spatial import distance_matrix
+from scipy.stats.distributions import chi2
+
 import track_database as tdb
 from track_database.utils import plot_cones
-from fsds_client import HighLevelClient
-from fsds_client.utils import *
 
 np.random.seed(127)
 bruh = True
@@ -460,7 +458,8 @@ class EKFSLAM:
                 )  # shape (I', 2, 2)
                 Sinv = np.linalg.inv(S)  # shape (I', 2, 2)
                 delta_z = np.transpose(
-                    observations[:, None, :] - z_hat[None, potential_landmarks_idx, :],
+                    observations[:, np.newaxis, :]
+                    - z_hat[np.newaxis, potential_landmarks_idx, :],
                     (1, 0, 2),
                 )  # shape (I', J, 2)
                 delta_z[:, :, 1] = mod(delta_z[:, :, 1])  # shape (I', J, 2)
@@ -478,7 +477,8 @@ class EKFSLAM:
                         # observation i has been associated with landmark j
                         self.data_association_statistics[0] += 1
                         associations.append((j, i))
-                    elif D[j, i] > self.chi2_99:
+                    # elif D[j, i] > self.chi2_99:
+                    elif D[j, i] > chi2.ppf(0.999999, df=2):
                         # observation i has not been associated with any landmark so we create a new one
                         self.data_association_statistics[2] += 1
                         self.add_landmark(
@@ -684,13 +684,13 @@ def run_slam():
     runtimes = []
     states = []
     true_states = []
-    landmark_types_counts = []
+    data_association_statistics = []
     for file_id in range(0, (len(data.files) - 5), int(dt / 0.01)):
         true_state = data["states"][file_id]
         cones = data[f"rel_cones_positions_{file_id}"]
-        start = perf_counter()
-        R = np.array([0.0, 0.1]) ** 2
         Q = np.array([0.1, 0.1, 0.01]) ** 2
+        R = np.array([1.0, 0.1]) ** 2
+        start = perf_counter()
         state, _, counts = localizer.localize(
             observations=cones
             + np.random.multivariate_normal(np.zeros(2), np.diag(R), cones.shape[0]),
@@ -701,11 +701,10 @@ def run_slam():
             odometry_uncertainty=Q,
             sampling_time=dt,
         )
-
         end = perf_counter()
         runtimes.append(end - start)
         print("slam runtime: {} ms".format((end - start) * 1000))
-        landmark_types_counts.append(counts)
+        data_association_statistics.append(counts)
         states.append(state[:3])
         true_states.append(true_state)
         if np.linalg.norm(state[:2] - true_state[:2]) > 3:
@@ -715,7 +714,7 @@ def run_slam():
     states = np.array(states)
     true_states = np.array(true_states)
     runtimes = np.array(runtimes)
-    landmark_types_counts = np.array(landmark_types_counts)
+    data_association_statistics = np.array(data_association_statistics)
 
     print("Average runtime: {} ms".format(np.mean(runtimes) * 1000))
     localization_error = np.linalg.norm(states[:, :2] - true_states[:, :2], axis=1)
@@ -729,8 +728,8 @@ def run_slam():
         ),
     )
     print(
-        "Average landmark types counts: {:.3f} % associated, {:.3f}% discarded, {:.3f}% new".format(
-            *np.mean(landmark_types_counts, axis=0)
+        "Average data association statistics: {:.3f} % associated, {:.3f}% discarded, {:.3f}% new".format(
+            *np.mean(data_association_statistics, axis=0)
         )
     )
     track = tdb.load_track(track_name)
