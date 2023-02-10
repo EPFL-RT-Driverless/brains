@@ -32,9 +32,21 @@ find_package(unique_identifier_msgs REQUIRED)
 find_package(visualization_msgs REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 
+set(msg_files
+    "msg/BoundingBoxes.msg"
+    "msg/CarControls.msg"
+    "msg/CenterLineWidths.msg"
+    "msg/ControlPrediction.msg"
+    "msg/GSSData.msg"
+    "msg/IMUData.msg"
+    "msg/Pose2D.msg"
+    "msg/RelConesPositions.msg"
+    "msg/VelocityEstimation.msg"
+    "msg/WSSData.msg"
+)
 rosidl_generate_interfaces(${PROJECT_NAME}
-  "msg/CarControls.msg"
-  # DEPENDENCIES geometry_msgs # Add packages that above messages depend on, in this case geometry_msgs for Sphere.msg
+    ${msg_files}
+    DEPENDENCIES std_msgs # Add packages that above messages depend on, in this case geometry_msgs for Sphere.msg
 )
 
 
