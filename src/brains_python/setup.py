@@ -21,6 +21,9 @@ setup(
     license="MIT",
     tests_require=["pytest"],
     entry_points={
-        "console_scripts": [],
+        "console_scripts": [
+            "velocity_estimation = brains_python.nodes.velocity_estimation:main",
+            "fsds_car_sensors = brains_python.nodes.fsds_car_sensors:main",
+        ],
     },
 )
