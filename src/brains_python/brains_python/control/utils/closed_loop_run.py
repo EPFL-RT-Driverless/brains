@@ -9,7 +9,7 @@ import track_database as td
 from data_visualization import *
 from fsds_client import *
 
-from brains_python.common.mission import Mission
+from brains_python.common import Mission, sleep
 from brains_python.control.constants import *
 from brains_python.control.controller import *
 from brains_python.control.motion_planner import *
@@ -373,7 +373,7 @@ class ClosedLoopRun:
                         self.car_params,
                     )
             else:
-                ClosedLoopRun._sleep(self.delay)
+                sleep(self.delay)
 
             # STEP 3.6: send control ======================================================
             # store control
@@ -457,7 +457,7 @@ class ClosedLoopRun:
             if self.simil or self.plot_mode == PlotMode.LIVE_DYNAMIC:
                 to_sleep = self.sampling_time - (end_iteration - start_iteration)
                 if to_sleep > 0:
-                    ClosedLoopRun._sleep(to_sleep)
+                    sleep(to_sleep)
                 else:
                     self._status_message(
                         f"iteration {self.iteration} : iteration took too long to execute, skipping sleep\n",
@@ -638,12 +638,6 @@ class ClosedLoopRun:
                 / car_params.I_z,
             ]
         )
-
-    @staticmethod
-    def _sleep(seconds):
-        start = perf_counter()
-        while perf_counter() - start < seconds:
-            pass
 
     def _internal_plot_everything(
         self,

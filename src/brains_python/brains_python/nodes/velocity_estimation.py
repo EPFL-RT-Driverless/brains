@@ -2,29 +2,29 @@
 import rclpy
 
 from brains_custom_interfaces.msg import IMUData, GSSData, WSSData, VelocityEstimation
-from .multi_subscription_node import MultiSubscriptionNode
+from brains_python.common import sleep
+from .multi_subscription_node import MultiSubscriptionMixin
 
 
-class VelocityEstimationNode(MultiSubscriptionNode):
+class VelocityEstimationNode(MultiSubscriptionMixin):
     def __init__(self):
         super().__init__(
-            "VelocityEstimation",
-            [
+            node_name="VelocityEstimation",
+            subconfig=[
                 {"topic": "imu_data", "msg_type": IMUData, "queue_size": 10},
                 {"topic": "wss_data", "msg_type": WSSData, "queue_size": 10},
                 {"topic": "gss_data", "msg_type": GSSData, "queue_size": 10},
             ],
-            {
-                "topic": "velocity_estimation",
-                "msg_type": VelocityEstimation,
-                "queue_size": 10,
-            },
+        )
+        self.vel_est_publisher = self.create_publisher(
+            VelocityEstimation, "velocity_estimation", 10
         )
 
-    def processing(self, *args, **kwargs):
-        self.get_logger().info("Processing")
+    def processing(self, imu_data: IMUData, wss_data: WSSData, gss_data: GSSData):
+        self.get_logger().info("Creating Velocity estimation")
         msg = VelocityEstimation()
-        self.publisher.publish(msg)
+        sleep(0.002)
+        self.vel_est_publisher.publish(msg)
 
 
 def main(args=None):
