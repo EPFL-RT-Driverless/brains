@@ -1,3 +1,8 @@
+# v0.2.0
+
+created first nodes that seem to communicate just fine together.
+they are empty tho, we need to integrate the code for each module.
+
 # v0.1.1
 
 added first implementations of `EKFLocalization` and `EKFSLAM` (not the more robust yet)
