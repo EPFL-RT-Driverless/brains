@@ -1,3 +1,7 @@
+# v0.3.0
+
+introducing an `env.yml` file for the conda environment.
+
 # v0.2.0
 
 created first nodes that seem to communicate just fine together.

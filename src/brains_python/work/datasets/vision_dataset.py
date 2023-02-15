@@ -52,6 +52,8 @@ def bruh(mission: Mission, track_name: str, v_x_max: float, pitch: int):
     )
     camera_images = []
     lidar_point_clouds = []
+    lidar_positions = []
+    lidar_orientations = []
     rel_cones_positions = []
 
     def callback(s: ClosedLoopRun):
@@ -61,6 +63,8 @@ def bruh(mission: Mission, track_name: str, v_x_max: float, pitch: int):
         camera_images.append(instance.fsds_client.get_image())
         lidar_data = instance.fsds_client.low_level_client.getLidarData()
         lidar_point_clouds.append(lidar_data.point_cloud)
+        lidar_positions.append(lidar_data.pose.position.to_numpy_array())
+        lidar_orientations.append(lidar_data.pose.orientation.to_numpy_array())
         rel_cones_positions.append(instance.fsds_client.find_cones(s.states[-1]))
         print(f"Callback took {1000*(perf_counter() - start)} ms")
 
