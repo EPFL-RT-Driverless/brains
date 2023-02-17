@@ -1,3 +1,7 @@
+# v0.4.1
+
+:sparkles: updated scripts to add checks
+
 # v0.4.0
 
 - added neuromancer to `env.yml` and removed `src/brains_python/requirements.txt`
