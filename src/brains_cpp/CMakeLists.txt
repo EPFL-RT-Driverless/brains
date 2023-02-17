@@ -1,6 +1,6 @@
 # Copyright (c) 2023. Tudor Oancea EPFL Racing Team Driverless
 cmake_minimum_required(VERSION 3.8)
-project(brains_cpp VERSION 0.3.0)
+project(brains_cpp VERSION 0.4.0)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
