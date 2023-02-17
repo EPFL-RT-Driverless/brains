@@ -1,5 +1,4 @@
 #  Copyright (c) 2023. Tudor Oancea EPFL Racing Team Driverless
-pip3 install -r src/brains_python/requirements.txt
 pip3 install -e src/brains_python
 pre-commit install
 # build the workspace with colcon (use bash or zsh depending on the current shell)
