@@ -1,6 +1,6 @@
 # Copyright (c) Tudor Oancea, 2022
 
-name: Check the correct version is written in CHANGELOG.md and setup.py
+name: Check the correct version is written in CHANGELOG.md, setup.py and CMakeLists.txt
 on:
   pull_request:
     branches:
@@ -22,19 +22,72 @@ jobs:
             echo "VERSION MISMATCH"
             exit 1
           fi
-#  check-setup:
-#    runs-on: ubuntu-latest
-#    if: startsWith(github.event.pull_request.title, 'release')
-#    steps:
-#      - name: checkout
-#        uses: actions/checkout@v3
-#      - name: check version in setup.py
-#        env:
-#          PR_TITLE: ${{ github.event.pull_request.title }}
-#        run: |
-#          echo $PR_TITLE | grep -e "release.*" || exit 1
-#          export VERSION=$(echo $PR_TITLE | sed -E 's/.* v([0-9\-\.]*)/\1/g')
-#          if [[ $(grep "$VERSION" setup.py) == "" ]]; then
-#            echo "VERSION MISMATCH"
-#            exit 1
-#          fi
+
+  check-brains-python:
+    runs-on: ubuntu-latest
+    if: startsWith(github.event.pull_request.title, 'release')
+    steps:
+      - name: checkout
+        uses: actions/checkout@v3
+      - name: check version in setup.py
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          echo $PR_TITLE | grep -e "release.*" || exit 1
+          export VERSION=$(echo $PR_TITLE | sed -E 's/.* v([0-9\-\.]*)/\1/g')
+          if [[ $(grep "$VERSION" src/brains_python/setup.py) == "" ]];
+          then
+            echo "VERSION MISMATCH"
+            exit 1
+          fi
+  check-brains-launch:
+    runs-on: ubuntu-latest
+    if: startsWith(github.event.pull_request.title, 'release')
+    steps:
+      - name: checkout
+        uses: actions/checkout@v3
+      - name: check version in setup.py
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          echo $PR_TITLE | grep -e "release.*" || exit 1
+          export VERSION=$(echo $PR_TITLE | sed -E 's/.* v([0-9\-\.]*)/\1/g')
+          if [[ $(grep "$VERSION" src/brains_launch/setup.py) == "" ]];
+          then
+            echo "VERSION MISMATCH"
+            exit 1
+          fi
+  check-brains-cpp:
+      runs-on: ubuntu-latest
+      if: startsWith(github.event.pull_request.title, 'release')
+      steps:
+        - name: checkout
+          uses: actions/checkout@v3
+        - name: check version in setup.py
+          env:
+            PR_TITLE: ${{ github.event.pull_request.title }}
+          run: |
+            echo $PR_TITLE | grep -e "release.*" || exit 1
+            export VERSION=$(echo $PR_TITLE | sed -E 's/.* v([0-9\-\.]*)/\1/g')
+            if [[ $(grep "$VERSION" src/brains_cpp/CMakeLists.txt) == "" ]];
+            then
+              echo "VERSION MISMATCH"
+              exit 1
+            fi
+  check-brains-custom-interfaces:
+      runs-on: ubuntu-latest
+      if: startsWith(github.event.pull_request.title, 'release')
+      steps:
+        - name: checkout
+          uses: actions/checkout@v3
+        - name: check version in setup.py
+          env:
+            PR_TITLE: ${{ github.event.pull_request.title }}
+          run: |
+            echo $PR_TITLE | grep -e "release.*" || exit 1
+            export VERSION=$(echo $PR_TITLE | sed -E 's/.* v([0-9\-\.]*)/\1/g')
+            if [[ $(grep "$VERSION" src/brains_custom_interfaces/CMakeLists.txt) == "" ]];
+            then
+              echo "VERSION MISMATCH"
+              exit 1
+            fi
