@@ -1,4 +1,9 @@
 #  Copyright (c) 2023. Tudor Oancea EPFL Racing Team Driverless
+if [[ $(basename $PWD) != "brains" ]]; then
+    echo "Please run this script from the root of the brains repository"
+    exit 1
+fi
+
 if [ -n "$BASH_VERSION" ]; then
   source $HOME/Formula-Student-Driverless-Simulator/ros2/install/setup.bash || true
 elif [ -n "$ZSH_VERSION" ]; then
