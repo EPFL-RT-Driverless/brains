@@ -1,5 +1,8 @@
 # BRAINS (Basically, Racing Autonomously Is Now Simple)
 
+![GitHub tag (latest SemVer)](https://img.shields.io/github/v/tag/EPFL-RT-Driverless/brains?sort=semver)
+<a href="https://github.com/psf/black"><img alt="Code style: black" src="https://img.shields.io/badge/code%20style-black-000000.svg"/></a>
+
 ## project structure
 
 

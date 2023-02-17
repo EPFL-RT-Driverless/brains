@@ -1,3 +1,9 @@
+# v0.4.0
+
+- added neuromancer to `env.yml` and removed `src/brains_python/requirements.txt`
+- first version of Velocity estimation: `VE0`. Still in `work` folder
+- added back some CI tests to check the correct version is written in setup.py and CMakeLists.txt files
+
 # v0.3.0
 
 introducing an `env.yml` file for the conda environment.
