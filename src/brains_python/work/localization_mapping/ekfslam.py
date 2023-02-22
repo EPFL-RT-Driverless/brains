@@ -1,5 +1,4 @@
 import os.path
-from copy import copy
 from time import perf_counter
 from typing import Union
 
@@ -8,17 +7,17 @@ import numpy as np
 from tqdm import tqdm
 
 import track_database as tdb
-from numpy import ndarray
 from scipy.linalg import block_diag
 from scipy.optimize import linear_sum_assignment
 from scipy.stats.distributions import chi2
 from track_database.utils import plot_cones
 
 np.random.seed(127)
-bruh = True
+
+__all__ = ["EKFSLAM"]
 
 
-def mod(x):
+def wrapToPi(x):
     return np.mod(x + np.pi, 2 * np.pi) - np.pi
 
 
@@ -59,6 +58,10 @@ class EKFSLAM:
         self.data_association_statistics = []
 
     @property
+    def state(self) -> np.ndarray:
+        return self.mu[:3]
+
+    @property
     def map(self) -> np.ndarray:
         return self.mu[3:].reshape((-1, 2))
 
@@ -66,9 +69,20 @@ class EKFSLAM:
     def nlandmarks(self) -> int:
         return (self.nx - 3) // 2
 
-    def prediction_step(
-        self, odometry: np.ndarray, odometry_uncertainty: np.ndarray, dt: float
+    def odometry_update(
+        self,
+        odometry: np.ndarray,
+        odometry_uncertainty: np.ndarray,
+        sampling_time: float = None,
     ):
+        assert odometry.shape == (self.nu,)
+        assert odometry_uncertainty.shape == (
+            self.nu,
+        ) or odometry_uncertainty.shape == (self.nu, self.nu)
+        if len(odometry_uncertainty.shape) == 1:
+            odometry_uncertainty = np.diag(odometry_uncertainty)
+
+        dt = sampling_time if sampling_time is not None else self.sampling_time
         phi = self.mu[2]
         v_x = odometry[0]
         v_y = odometry[1]
@@ -94,7 +108,7 @@ class EKFSLAM:
                 r * dt,
             ]
         )
-        self.mu[2] = mod(self.mu[2])
+        self.mu[2] = wrapToPi(self.mu[2])
         tpr = G @ self.Sigma[:3, 3:]
         self.Sigma[:3, :3] = (
             G @ self.Sigma[:3, :3] @ G.T + V @ odometry_uncertainty @ V.T
@@ -102,64 +116,56 @@ class EKFSLAM:
         self.Sigma[:3, 3:] = tpr
         self.Sigma[3:, :3] = tpr.T
 
-    def localize(
+    def yaw_update(self, yaw: float, yaw_uncertainty: float = 1e-3):
+        H = np.zeros(self.nx)
+        H[2] = 1.0
+        K = self.Sigma[:, 2] / (self.Sigma[2, 2] + yaw_uncertainty)  # Kalman gain
+        self.mu = self.mu + K * wrapToPi(yaw - self.mu[2])
+        self.mu[3] = wrapToPi(self.mu[3])
+        self.Sigma = self.Sigma - K[:, None] @ (K[None, :] * (self.Sigma[2, 2] + 1e-3))
+
+    def cones_update(
         self,
         observations: np.ndarray,
-        odometry: np.ndarray,
-        phi_obs: float,
-        odometry_uncertainty: np.ndarray,
         observations_uncertainties: np.ndarray,
-        sampling_time: float = None,
         cones_coordinates: str = "polar",
-    ) -> tuple[Union[ndarray, ndarray], Union[ndarray, ndarray], list[int]]:
+    ):
         """
         :param observations: shape (n, 2) array of cones positions in polar coordinates
-        :param odometry: shape (3,), u=[v_x, v_y, r]
-        :param phi_obs: float, orientation of the robot observed with IMU
-        :param odometry_uncertainty: shape (3,) or (3,3), uncertainty of the odometry
         :param observations_uncertainties: shape (2,) or (2,2), uncertainty of the observations
+        :param cones_coordinates: how the observations are specified, in "polar" or "cartesian" coordinates (always in the car frame)
         """
-        # verify inputs
+        # INPUT VALIDATION ============================================================
         assert len(observations.shape) == 2 and observations.shape[1] == 2
-        assert odometry.shape == (self.nu,)
-        if len(odometry_uncertainty.shape) == 1:
-            odometry_uncertainty = np.diag(odometry_uncertainty)
-        assert odometry_uncertainty.shape == (self.nu, self.nu)
         if len(observations_uncertainties.shape) == 1:
             observations_uncertainties = np.diag(observations_uncertainties)
         assert observations_uncertainties.shape == (2, 2)
-        if sampling_time is None:
-            sampling_time = self.sampling_time
-
-        # PREDICTION STEP =========================================================
-        self.prediction_step(odometry, odometry_uncertainty, sampling_time)
-
-        # PRELIMINARY YAW UPDATE =========================================================
-        self.mu, self.Sigma = self.yaw_update(self.mu, self.Sigma, phi_obs)
-        self.mu[2] = mod(self.mu[2])
 
         # DATA ASSOCIATION STEP =========================================================
         if cones_coordinates == "cartesian":
             observations = np.array(
                 [
                     np.hypot(observations[:, 0], observations[:, 1]),
-                    mod(np.arctan2(observations[:, 1], observations[:, 0])),
+                    wrapToPi(np.arctan2(observations[:, 1], observations[:, 0])),
                 ]
             ).T
 
-        I = (self.nx - 3) // 2  # number of known landmarks
+        I = self.nlandmarks  # number of known landmarks
         J = observations.shape[0]  # number of observations
 
         # filter potential landmarks
-        potential_landmarks_idx = self.filter_potential_landmarks()
+        potential_landmarks_idx = self._filter_potential_landmarks()
         Iprime = len(
             potential_landmarks_idx
         )  # number of known landmarks after filtering
         if Iprime > 0:
-            delta = self.mu[3:].reshape(-1, 2) - self.mu[:2]  # shape (I', 2)
+            delta = self.map - self.state[:2]  # shape (I', 2)
             q = np.sum(delta**2, axis=1)  # shape (I',)
             z_hat = np.array(
-                [np.sqrt(q), mod(np.arctan2(delta[:, 1], delta[:, 0]) - self.mu[2])]
+                [
+                    np.sqrt(q),
+                    wrapToPi(np.arctan2(delta[:, 1], delta[:, 0]) - self.mu[2]),
+                ]
             ).T  # shape (I', 2)
             Hs = np.array(
                 [
@@ -210,7 +216,7 @@ class EKFSLAM:
                 - z_hat[np.newaxis, potential_landmarks_idx, :],
                 (1, 0, 2),
             )  # shape (I', J, 2)
-            delta_z[:, :, 1] = mod(delta_z[:, :, 1])  # shape (I', J, 2)
+            delta_z[:, :, 1] = wrapToPi(delta_z[:, :, 1])  # shape (I', J, 2)
 
             # compute the mahalanobis distance: D[j, i] = delta_z[i, j] @ Sinv[i] @ delta_z[i, j]
             D = np.einsum("ijk,ikl,ijl->ij", delta_z, Sinv, delta_z).T  # shape (J, I')
@@ -230,60 +236,35 @@ class EKFSLAM:
                 elif D[j, i] > self.threshold_2:
                     # observation j has not been associated with any landmark so we create a new one
                     self.data_association_statistics[2] += 1
-                    self.add_landmark(observations[j, :], observations_uncertainties)
+                    self._add_landmark(observations[j, :], observations_uncertainties)
                 else:
                     # observation i has been discarded because it is not a good enough match
                     self.data_association_statistics[1] += 1
+
+            # CONES UPDATE STEP ======================================================================
+            for j, i in associations:
+                K = (
+                    np.hstack((self.Sigma[:, :3], self.Sigma[:, 2 * i + 3 : 2 * i + 5]))
+                    @ Hs[i].T
+                    @ Sinv[i]
+                )
+                self.mu += K @ delta_z[i, j]
+                self.mu[2] = wrapToPi(self.mu[2])
+                self.Sigma -= K @ S[i] @ K.T
         else:
             # we don't have any landmark yet
             for j in range(J):
-                self.add_landmark(observations[j], observations_uncertainties)
+                self._add_landmark(observations[j], observations_uncertainties)
             self.data_association_statistics = [0, 0, J]
-            associations = []
 
-        # print(
-        #     "{}/{} accepted, {}/{} discarded, {}/{} new".format(
-        #         self.data_association_statistics[0],
-        #         J,
-        #         self.data_association_statistics[1],
-        #         J,
-        #         self.data_association_statistics[2],
-        #         J,
-        #     )
-        # )
         self.data_association_statistics = [
             x / J for x in self.data_association_statistics
         ]
 
-        # CONES UPDATE STEP ======================================================================
-        for j, i in associations:
-            K = (
-                np.hstack((self.Sigma[:, :3], self.Sigma[:, 2 * i + 3 : 2 * i + 5]))
-                @ Hs[i].T
-                @ Sinv[i]
-            )
-            self.mu += K @ delta_z[i, j]
-            self.mu[2] = mod(self.mu[2])
-            self.Sigma -= K @ S[i] @ K.T
-
-        # YAW UPDATE STEP ======================================================================
-        self.mu, self.Sigma = self.yaw_update(self.mu, self.Sigma, phi_obs)
-        self.mu[2] = mod(self.mu[2])
-
-        return self.mu, self.Sigma, self.data_association_statistics
-
-    def filter_potential_landmarks(self):
+    def _filter_potential_landmarks(self):
         return np.arange(self.nlandmarks)
 
-    def yaw_update(self, x, Sigma, phi_obs):
-        H = np.zeros(self.nx)
-        H[2] = 1.0
-        K = Sigma[:, 2] / (Sigma[2, 2] + 1e-3)  # Kalman gain
-        return x + K * mod(phi_obs - x[2]), Sigma - K[:, None] @ (
-            K[None, :] * (Sigma[2, 2] + 1e-3)
-        )
-
-    def add_landmark(
+    def _add_landmark(
         self,
         observation: np.ndarray,
         observations_uncertainties: np.ndarray = 1e-2 * np.eye(2),
@@ -343,6 +324,10 @@ def run():
     dt = 0.01
     track_name = "fsds_competition_1"
     filename = f"{track_name}_10.0.npz"
+    mode = "localization"
+    # mode = "mapping"
+    Q = np.array([0.1, 0.1, 0.01]) ** 2
+    R = np.array([1.0, 0.1]) ** 2
     # noinspection PyTypeChecker
     data: np.lib.npyio.NpzFile = np.load(
         os.path.abspath(
@@ -353,62 +338,71 @@ def run():
             )
         )
     )
-    print(data.files[:6])
-    localizer = EKFSLAM(
-        # map=data["global_cones_positions"],
+    slamer = EKFSLAM(
+        map=data["global_cones_positions"]
+        if mode == "localization"
+        else np.empty((0, 2)),
         initial_state=np.array([0.0, 0.0, np.pi / 2]),
         initial_state_uncertainty=0.0 * np.eye(3),
         initial_landmark_uncertainty=1e-1 * np.eye(2),
         sampling_time=dt,
     )
-    tpr = data[f"rel_cones_positions_{0}"]
-    [localizer.add_landmark(tpr[i]) for i in range(tpr.shape[0])]
-    added_landmarks_idx = []
-    runtimes = []
+    # tpr = data[f"rel_cones_positions_{0}"]
+    # [slamer._add_landmark(tpr[i]) for i in range(tpr.shape[0])]
+    odometry_update_runtimes = []
+    yaw_update_runtimes = []
+    cones_update_runtimes = []
+
     states = []
     true_states = []
     data_association_statistics = []
-    nx = copy(localizer.nx)
     for file_id in tqdm(range(0, (len(data.files) - 5), int(dt / 0.01))):
         true_state = data["states"][file_id]
-        cones = data[f"rel_cones_positions_{file_id}"]
-        Q = np.array([0.1, 0.1, 0.01]) ** 2
-        R = np.array([1.0, 0.1]) ** 2
         start = perf_counter()
-        state, _, counts = localizer.localize(
-            observations=cones
-            + np.random.multivariate_normal(np.zeros(2), np.diag(R), cones.shape[0]),
+        slamer.odometry_update(
             odometry=true_state[-3:]
             + np.random.multivariate_normal(np.zeros(3), np.diag(Q)),
-            phi_obs=true_state[2],
-            observations_uncertainties=R,
             odometry_uncertainty=Q,
-            sampling_time=dt,
+            # sampling_time=dt,
         )
-        end = perf_counter()
-        if localizer.nx - nx > 0:
-            added_landmarks_idx.append(
-                list(range((nx - 3) // 2, (localizer.nx - 3) // 2))
+        stop = perf_counter()
+        odometry_update_runtimes.append(1000 * (stop - start))
+        start = perf_counter()
+        slamer.yaw_update(yaw=true_state[2], yaw_uncertainty=1e-3)
+        stop = perf_counter()
+        yaw_update_runtimes.append(1000 * (stop - start))
+        if file_id % 5 == 0:
+            cones = data[f"rel_cones_positions_{file_id}"]
+            start = perf_counter()
+            slamer.cones_update(
+                observations=cones
+                + np.random.multivariate_normal(
+                    np.zeros(2), np.diag(R), cones.shape[0]
+                ),
+                observations_uncertainties=R,
             )
-            nx = copy(localizer.nx)
-        else:
-            added_landmarks_idx.append([])
+            stop = perf_counter()
+            cones_update_runtimes.append(1000 * (stop - start))
+            data_association_statistics.append(slamer.data_association_statistics)
 
-        runtimes.append(end - start)
-        # print("slam runtime: {} ms".format((end - start) * 1000))
-        data_association_statistics.append(counts)
-        states.append(state[:3])
+        states.append(slamer.state)
         true_states.append(true_state)
+
         # if np.linalg.norm(state[:2] - true_state[:2]) > 3:
         #     print("Localization error too high, aborting")
         #     break
 
     states = np.array(states)
     true_states = np.array(true_states)
-    runtimes = np.array(runtimes)
+    odometry_update_runtimes = np.array(odometry_update_runtimes)
+    yaw_update_runtimes = np.array(yaw_update_runtimes)
+    cones_update_runtimes = np.array(cones_update_runtimes)
     data_association_statistics = np.array(data_association_statistics)
 
-    print("Average runtime: {} ms".format(np.mean(runtimes) * 1000))
+    print(
+        f"Runtimes: \n\todometry update:\t{np.mean(odometry_update_runtimes):.3f} ± {np.std(odometry_update_runtimes):.3f} ms\n\tyaw update:\t{np.mean(yaw_update_runtimes):.3f} ± {np.std(yaw_update_runtimes):.3f} ms\n\tcones update:\t{np.mean(cones_update_runtimes):.3f} ± {np.std(cones_update_runtimes):.3f} ms"
+    )
+
     localization_error = np.linalg.norm(states[:, :2] - true_states[:, :2], axis=1)
     orientation_error = np.abs(states[:, 2] - true_states[:, 2])
     print(
@@ -419,13 +413,14 @@ def run():
             np.mean(orientation_error), np.std(orientation_error)
         ),
     )
+
     print(
         "Average data association statistics: {:.3f} % associated, {:.3f}% discarded, {:.3f}% new".format(
             *np.mean(data_association_statistics, axis=0)
         )
     )
-    track = tdb.load_track(track_name)
 
+    track = tdb.load_track(track_name)
     fig = plt.figure(figsize=(10, 10))
     plot_cones(
         track.blue_cones,
@@ -435,19 +430,12 @@ def run():
         show=False,
     )
     plt.axis("equal")
-    plt.scatter(localizer.map[:, 0], localizer.map[:, 1], c="r", label="Map")
+    plt.scatter(slamer.map[:, 0], slamer.map[:, 1], c="r", label="Map")
     plt.plot(states[:, 0], states[:, 1], "b-", label="Estimated trajectory")
     plt.plot(true_states[:, 0], true_states[:, 1], "g-", label="True trajectory")
     plt.legend()
     plt.tight_layout()
     plt.savefig("ekfslam.png", dpi=300)
-    # for it, idx in enumerate(added_landmarks_idx):
-    #     print(
-    #         "iteration {} state {} added landmarks: {}".format(
-    #             it, true_states[it, :3], [localizer.map[i, :] for i in idx]
-    #         )
-    #     )
-
     plt.show()
 
 
