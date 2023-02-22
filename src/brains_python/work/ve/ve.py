@@ -139,7 +139,7 @@ class VE0:
 def main():
     dt = 0.01
     track_name = "fsds_competition_1"
-    vmax = 15.0
+    vmax = 10.0
     filename = f"{track_name}_{vmax}.npz"
     # noinspection PyTypeChecker
     data: np.lib.npyio.NpzFile = np.load(
@@ -161,16 +161,16 @@ def main():
     estimated_velocities = []
     raw_ins_velocities = []
     true_velocities = []
-    motion_covariance = np.diag([0.1, 0.1, 0.05, 3.0, 3.0]) ** 2
+    motion_covariance = np.diag([0.1, 0.1, 0.05, 14.0, 3.0]) ** 2
     diagnostics = {"ins": [], "gss": [], "wheel_speeds": []}
     mahalanobis_distances = {"ins": [], "gss": [], "wheel_speeds": []}
     for file_id in range(0, data["states"].shape[0], int(dt / 0.01)):
         true_velocities.append(data["states"][file_id][3:])
         sigma_v_x = 0.5
         sigma_v_y = 0.1
-        sigma_r = 0.25
+        sigma_r = 0.07
         sigma_a_x = 14.119
-        sigma_a_y = 02.711
+        sigma_a_y = 2.711
         ins_measurement = np.concatenate(
             (
                 true_velocities[-1]
@@ -186,17 +186,19 @@ def main():
         )
         wheels_measurement = data["wheel_speeds"][file_id] * 0.2 * 2 * np.pi / 60
         wheels_uncertainty = np.array([2.0, 2.0, 2.0, 2.0]) ** 2
-        gss_measurement = data["gss_velocities"][file_id, :2]
-        gss_uncertainty = np.diag([0.1, 0.01]) ** 2
+        gss_uncertainty = np.diag([1.0, 0.01]) ** 2
+        gss_measurement = data["gss_velocities"][
+            file_id, :2
+        ] + np.random.multivariate_normal(np.zeros(2), gss_uncertainty)
         start = perf_counter()
         ve.predict(motion_covariance)
         ve.update(
             measurements={
-                "gss": gss_measurement,
+                # "gss": gss_measurement,
                 "ins": ins_measurement,
             },
             measurement_covariances={
-                "gss": gss_uncertainty,
+                # "gss": gss_uncertainty,
                 "ins": ins_uncertainty,
             },
         )
@@ -204,11 +206,11 @@ def main():
         wheels_measurement[1] -= 0.5 * ve.mu[3]
         wheels_measurement[2] += 0.5 * ve.mu[3]
         wheels_measurement[3] -= 0.5 * ve.mu[3]
-        for i in range(4):
-            ve.update(
-                measurements={"wheel_speeds": wheels_measurement[i]},
-                measurement_covariances={"wheel_speeds": wheels_uncertainty[i]},
-            )
+        # for i in range(4):
+        #     ve.update(
+        #         measurements={"wheel_speeds": wheels_measurement[i]},
+        #         measurement_covariances={"wheel_speeds": wheels_uncertainty[i]},
+        #     )
 
         end = perf_counter()
 
