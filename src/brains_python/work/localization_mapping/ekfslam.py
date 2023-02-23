@@ -399,23 +399,26 @@ def run():
     cones_update_runtimes = np.array(cones_update_runtimes)
     data_association_statistics = np.array(data_association_statistics)
 
+    def print_stat(arr, name):
+        return "{:<15}: {:<6.3f} ± {:>6.3f}".format(name, np.mean(arr), np.std(arr))
+
     print(
-        f"Runtimes: \n\todometry update:\t{np.mean(odometry_update_runtimes):.3f} ± {np.std(odometry_update_runtimes):.3f} ms\n\tyaw update:\t{np.mean(yaw_update_runtimes):.3f} ± {np.std(yaw_update_runtimes):.3f} ms\n\tcones update:\t{np.mean(cones_update_runtimes):.3f} ± {np.std(cones_update_runtimes):.3f} ms"
+        "Runtimes:\n",
+        "\t" + print_stat(odometry_update_runtimes, "odometry update") + " ms\n",
+        "\t" + print_stat(yaw_update_runtimes, "yaw update") + " ms\n",
+        "\t" + print_stat(cones_update_runtimes, "cones update") + " ms",
     )
 
     localization_error = np.linalg.norm(states[:, :2] - true_states[:, :2], axis=1)
     orientation_error = np.abs(states[:, 2] - true_states[:, 2])
     print(
-        "position error: {:.3f} ± {:.3f} m".format(
-            np.mean(localization_error), np.std(localization_error)
-        ),
-        "orientation error: {:.3f} ± {:.3f} rad".format(
-            np.mean(orientation_error), np.std(orientation_error)
-        ),
+        "Error statistics:\n",
+        "\t" + print_stat(localization_error, "position error") + " m\n",
+        "\t" + print_stat(orientation_error, "orientation error") + " rad",
     )
 
     print(
-        "Average data association statistics: {:.3f} % associated, {:.3f}% discarded, {:.3f}% new".format(
+        "Average data association statistics:\n{:.3f} % associated, {:.3f}% discarded, {:.3f}% new".format(
             *np.mean(data_association_statistics, axis=0)
         )
     )
