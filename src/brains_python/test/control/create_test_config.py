@@ -22,11 +22,11 @@ def create_test_config(
     mission: Mission,
     track_name: str,
     racing_controller_params: ControllerParams,
+    car_params: CarParams = CarParams(**fsds_car_params),
     simulation_mode: SimulationMode = SimulationMode.MIL_KIN_6,
     plot_mode: PlotMode = PlotMode.STATIC,
 ):
     track = td.load_track(track_name)
-    car_params = CarParams(**fsds_car_params)
     if mission == Mission.AUTOCROSS:
         autox_motion_planner_params = MotionPlannerParams(
             mission=Mission.TRACKDRIVE,
