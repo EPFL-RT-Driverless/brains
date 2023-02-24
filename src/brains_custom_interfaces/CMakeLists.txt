@@ -37,12 +37,9 @@ set(msg_files
     "msg/CarControls.msg"
     "msg/CenterLineWidths.msg"
     "msg/ControlPrediction.msg"
-    "msg/GSSData.msg"
-    "msg/IMUData.msg"
     "msg/Pose2D.msg"
-    "msg/RelConesPositions.msg"
+    "msg/ConesObservations.msg"
     "msg/VelocityEstimation.msg"
-    "msg/WSSData.msg"
 )
 rosidl_generate_interfaces(${PROJECT_NAME}
     ${msg_files}

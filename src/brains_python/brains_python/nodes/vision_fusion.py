@@ -1,7 +1,7 @@
 #  Copyright (c) 2023. Tudor Oancea EPFL Racing Team Driverless
 import rclpy
 
-from brains_custom_interfaces.msg import BoundingBoxes, RelConesPositions
+from brains_custom_interfaces.msg import BoundingBoxes, ConesObservations
 from sensor_msgs.msg import PointCloud2
 from brains_python.common import sleep
 from .multi_subscription_node import MultiSubscriptionMixin
@@ -20,15 +20,15 @@ class VisionFusionNode(MultiSubscriptionMixin):
                 },
             ],
         )
-        self.rel_cones_positions_publisher = self.create_publisher(
-            RelConesPositions, "rel_cones_positions", 10
+        self.cones_observations_publisher = self.create_publisher(
+            ConesObservations, "cones_observations", 10
         )
 
     def processing(self, point_cloud: PointCloud2, bounding_boxes: BoundingBoxes):
         self.get_logger().info("running vision fusion")
-        msg = RelConesPositions()
+        msg = ConesObservations()
         sleep(0.05)
-        self.rel_cones_positions_publisher.publish(msg)
+        self.cones_observations_publisher.publish(msg)
 
 
 def main(args=None):

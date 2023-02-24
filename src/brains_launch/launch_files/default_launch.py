@@ -7,18 +7,8 @@ def generate_launch_description():
     return launch.LaunchDescription(
         [
             launch_ros.actions.Node(
-                name="fsds_car_sensors",
-                executable="fsds_car_sensors",
-                package="brains_python",
-            ),
-            launch_ros.actions.Node(
-                name="fsds_car_controller",
-                executable="fsds_car_controller",
-                package="brains_python",
-            ),
-            launch_ros.actions.Node(
-                name="control_known_track",
-                executable="control_known_track",
+                name="fsds_velocity_estimation",
+                executable="fsds_velocity_estimation",
                 package="brains_python",
             ),
             launch_ros.actions.Node(
@@ -37,13 +27,18 @@ def generate_launch_description():
                 package="brains_python",
             ),
             launch_ros.actions.Node(
-                name="velocity_estimation",
-                executable="velocity_estimation",
+                name="ekf_slam",
+                executable="ekf_slam",
                 package="brains_python",
             ),
             launch_ros.actions.Node(
-                name="ekf_slam",
-                executable="ekf_slam",
+                name="control_known_track",
+                executable="control_known_track",
+                package="brains_python",
+            ),
+            launch_ros.actions.Node(
+                name="fsds_car_controller",
+                executable="fsds_car_controller",
                 package="brains_python",
             ),
         ]
