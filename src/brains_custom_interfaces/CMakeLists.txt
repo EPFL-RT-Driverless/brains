@@ -38,7 +38,7 @@ set(msg_files
     "msg/CenterLineWidths.msg"
     "msg/ControlPrediction.msg"
     "msg/Pose2D.msg"
-    "msg/RelConesPositions.msg"
+    "msg/ConesObservations.msg"
     "msg/VelocityEstimation.msg"
 )
 rosidl_generate_interfaces(${PROJECT_NAME}
