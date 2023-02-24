@@ -2,7 +2,7 @@
 import rclpy
 
 from brains_custom_interfaces.msg import (
-    RelConesPositions,
+    ConesObservations,
     VelocityEstimation,
     Pose2D,
     CenterLineWidths,
@@ -22,8 +22,8 @@ class EKFSLAMNode(MultiSubscriptionMixin):
                     "queue_size": 10,
                 },
                 {
-                    "topic": "rel_cones_positions",
-                    "msg_type": RelConesPositions,
+                    "topic": "cones_observations",
+                    "msg_type": ConesObservations,
                     "queue_size": 10,
                 },
             ],
@@ -36,7 +36,7 @@ class EKFSLAMNode(MultiSubscriptionMixin):
     def processing(
         self,
         velocity_estimation: VelocityEstimation,
-        rel_cones_positions: RelConesPositions,
+        cones_observations: ConesObservations,
     ):
         self.get_logger().info("running EKF SLAM")
         sleep(0.01)
