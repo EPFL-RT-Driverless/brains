@@ -31,7 +31,8 @@ class EKFSLAM:
     chi2_95 = chi2.ppf(0.95, df=2)
     chi2_99 = chi2.ppf(0.99, df=2)
     threshold_1 = chi2.ppf(0.95, df=2)
-    threshold_2 = chi2.ppf(0.99, df=2)
+    # threshold_2 = chi2.ppf(0.99, df=2)
+    threshold_2 = 15.0
 
     mu: np.ndarray
     Sigma: np.ndarray
@@ -121,7 +122,7 @@ class EKFSLAM:
         H[2] = 1.0
         K = self.Sigma[:, 2] / (self.Sigma[2, 2] + yaw_uncertainty)  # Kalman gain
         self.mu = self.mu + K * wrapToPi(yaw - self.mu[2])
-        self.mu[3] = wrapToPi(self.mu[3])
+        self.mu[2] = wrapToPi(self.mu[2])
         self.Sigma = self.Sigma - K[:, None] @ (K[None, :] * (self.Sigma[2, 2] + 1e-3))
 
     def cones_update(
@@ -323,11 +324,14 @@ class EKFSLAM:
 def run():
     dt = 0.01
     track_name = "fsds_competition_1"
-    filename = f"{track_name}_10.0.npz"
-    mode = "localization"
-    # mode = "mapping"
-    Q = np.array([0.1, 0.1, 0.01]) ** 2
-    R = np.array([1.0, 0.1]) ** 2
+    vxmax = 10.0
+    filename = f"{track_name}_{vxmax}.npz"
+    # mode = "localization"
+    mode = "mapping"
+    live_plot = False
+    pause_time = 0.1
+
+    track = tdb.load_track(track_name)
     # noinspection PyTypeChecker
     data: np.lib.npyio.NpzFile = np.load(
         os.path.abspath(
@@ -353,51 +357,121 @@ def run():
     yaw_update_runtimes = []
     cones_update_runtimes = []
 
-    states = []
-    true_states = []
-    data_association_statistics = []
+    poses = np.empty((0, 3), dtype=float)
+    true_poses = np.empty((0, 3), dtype=float)
+    data_association_statistics = np.empty((0, 3), dtype=float)
+    if live_plot:
+        plt.figure(figsize=(8, 8))
+        plt.ion()
+        plt.show(block=False)
     for file_id in tqdm(range(0, (len(data.files) - 5), int(dt / 0.01))):
+        # odometry update
         true_state = data["states"][file_id]
+        Q1 = (
+            np.array([0.04 * true_state[3], 0.04 * true_state[4], 0.04 * true_state[5]])
+            ** 2
+        )
+        Q2 = (
+            np.array([0.04 * true_state[3], 0.04 * true_state[4], 0.04 * true_state[5]])
+            * 2
+        ) ** 2
+        odometry_measurement = true_state[-3:] + np.random.multivariate_normal(
+            np.zeros(3), np.diag(Q1)
+        )
         start = perf_counter()
         slamer.odometry_update(
-            odometry=true_state[-3:]
-            + np.random.multivariate_normal(np.zeros(3), np.diag(Q)),
-            odometry_uncertainty=Q,
-            # sampling_time=dt,
+            odometry=odometry_measurement,
+            odometry_uncertainty=Q2,
+            sampling_time=dt,
         )
         stop = perf_counter()
         odometry_update_runtimes.append(1000 * (stop - start))
+
+        # yaw update
         start = perf_counter()
         slamer.yaw_update(yaw=true_state[2], yaw_uncertainty=1e-3)
         stop = perf_counter()
         yaw_update_runtimes.append(1000 * (stop - start))
+
+        # cones update
         if file_id % 5 == 0:
             cones = data[f"rel_cones_positions_{file_id}"]
+            e_rho = 0.1
+            e_theta = 0.1
+            R1 = np.array([e_rho, e_theta]) ** 2
+            R2 = (np.array([e_rho, e_theta]) * 1) ** 2
+            observations = cones + np.random.multivariate_normal(
+                np.zeros(2), np.diag(R1), cones.shape[0]
+            )
+            inverse_observations = np.array(
+                [
+                    slamer.mu[0]
+                    + observations[:, 0] * np.cos(observations[:, 1] + slamer.mu[2]),
+                    slamer.mu[1]
+                    + observations[:, 0] * np.sin(observations[:, 1] + slamer.mu[2]),
+                ]
+            ).T
             start = perf_counter()
             slamer.cones_update(
-                observations=cones
-                + np.random.multivariate_normal(
-                    np.zeros(2), np.diag(R), cones.shape[0]
-                ),
-                observations_uncertainties=R,
+                observations=observations,
+                observations_uncertainties=R2,
             )
             stop = perf_counter()
             cones_update_runtimes.append(1000 * (stop - start))
-            data_association_statistics.append(slamer.data_association_statistics)
+            # data_association_statistics.append(slamer.data_association_statistics)
+            data_association_statistics = np.vstack(
+                (data_association_statistics, slamer.data_association_statistics)
+            )
+            if live_plot:
+                # plot stuff
+                plt.clf()
+                plot_cones(
+                    track.blue_cones,
+                    track.yellow_cones,
+                    track.big_orange_cones,
+                    track.small_orange_cones,
+                    show=False,
+                )
+                plt.axis("equal")
+                plt.tight_layout()
+                plt.plot(
+                    true_poses[:, 0], true_poses[:, 1], "g-", label="True trajectory"
+                )
+                plt.plot(poses[:, 0], poses[:, 1], "b-", label="Estimated trajectory")
+                plt.scatter(slamer.map[:, 0], slamer.map[:, 1], c="r", label="Map")
+                plt.scatter(
+                    inverse_observations[:, 0],
+                    inverse_observations[:, 1],
+                    c="g",
+                    label="Reconstructed landmarks",
+                )
+                plt.legend()
+                plt.xlim(
+                    -(np.max(np.abs(inverse_observations[:, 0])) + 1),
+                    np.max(np.abs(inverse_observations[:, 0])) + 1,
+                )
+                plt.ylim(
+                    0.0,
+                    np.max(inverse_observations[:, 1]) + 1,
+                )
 
-        states.append(slamer.state)
-        true_states.append(true_state)
+        # states.append(slamer.state)
+        poses = np.vstack((poses, slamer.state))
+        # true_states.append(true_state)
+        true_poses = np.vstack((true_poses, true_state[:3]))
+        if live_plot:
+            plt.pause(pause_time)
 
-        # if np.linalg.norm(state[:2] - true_state[:2]) > 3:
-        #     print("Localization error too high, aborting")
-        #     break
+        if np.linalg.norm(slamer.state[:2] - true_state[:2]) > 3:
+            print("Localization error too high, aborting")
+            break
 
-    states = np.array(states)
-    true_states = np.array(true_states)
+    # states = np.array(states)
+    # true_states = np.array(true_states)
+    # data_association_statistics = np.array(data_association_statistics)
     odometry_update_runtimes = np.array(odometry_update_runtimes)
     yaw_update_runtimes = np.array(yaw_update_runtimes)
     cones_update_runtimes = np.array(cones_update_runtimes)
-    data_association_statistics = np.array(data_association_statistics)
 
     def print_stat(arr, name):
         return "{:<15}: {:<6.3f} ± {:>6.3f}".format(name, np.mean(arr), np.std(arr))
@@ -409,8 +483,8 @@ def run():
         "\t" + print_stat(cones_update_runtimes, "cones update") + " ms",
     )
 
-    localization_error = np.linalg.norm(states[:, :2] - true_states[:, :2], axis=1)
-    orientation_error = np.abs(states[:, 2] - true_states[:, 2])
+    localization_error = np.linalg.norm(poses[:, :2] - true_poses[:, :2], axis=1)
+    orientation_error = np.abs(poses[:, 2] - true_poses[:, 2])
     print(
         "Error statistics:\n",
         "\t" + print_stat(localization_error, "position error") + " m\n",
@@ -423,23 +497,24 @@ def run():
         )
     )
 
-    track = tdb.load_track(track_name)
-    fig = plt.figure(figsize=(10, 10))
-    plot_cones(
-        track.blue_cones,
-        track.yellow_cones,
-        track.big_orange_cones,
-        track.small_orange_cones,
-        show=False,
-    )
-    plt.axis("equal")
-    plt.scatter(slamer.map[:, 0], slamer.map[:, 1], c="r", label="Map")
-    plt.plot(states[:, 0], states[:, 1], "b-", label="Estimated trajectory")
-    plt.plot(true_states[:, 0], true_states[:, 1], "g-", label="True trajectory")
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig("ekfslam.png", dpi=300)
-    plt.show()
+    if not live_plot:
+        track = tdb.load_track(track_name)
+        fig = plt.figure(figsize=(10, 10))
+        plot_cones(
+            track.blue_cones,
+            track.yellow_cones,
+            track.big_orange_cones,
+            track.small_orange_cones,
+            show=False,
+        )
+        plt.axis("equal")
+        plt.tight_layout()
+        plt.plot(true_poses[:, 0], true_poses[:, 1], "g-", label="True trajectory")
+        plt.plot(poses[:, 0], poses[:, 1], "b-", label="Estimated trajectory")
+        plt.scatter(slamer.map[:, 0], slamer.map[:, 1], c="r", label="Map")
+        plt.legend()
+        plt.savefig("ekfslam.png", dpi=300)
+        plt.show()
 
 
 if __name__ == "__main__":
