@@ -57,16 +57,15 @@ def bruh(mission: Mission, track_name: str, v_x_max: float, pitch: int):
     rel_cones_positions = []
 
     def callback(s: ClosedLoopRun):
-        if s.iteration % 5 != 0:
-            return
-        start = perf_counter()
-        camera_images.append(instance.fsds_client.get_image())
-        lidar_data = instance.fsds_client.low_level_client.getLidarData()
-        lidar_point_clouds.append(lidar_data.point_cloud)
-        lidar_positions.append(lidar_data.pose.position.to_numpy_array())
-        lidar_orientations.append(lidar_data.pose.orientation.to_numpy_array())
-        rel_cones_positions.append(instance.fsds_client.find_cones(s.states[-1]))
-        print(f"Callback took {1000*(perf_counter() - start)} ms")
+        if s.iteration % 5 == 0:
+            start = perf_counter()
+            rel_cones_positions.append(instance.fsds_client.find_cones(s.states[-1]))
+            lidar_data = instance.fsds_client.low_level_client.getLidarData()
+            camera_images.append(instance.fsds_client.get_image())
+            lidar_point_clouds.append(lidar_data.point_cloud)
+            lidar_positions.append(lidar_data.pose.position.to_numpy_array())
+            lidar_orientations.append(lidar_data.pose.orientation.to_numpy_array())
+            print(f"Callback took {1000*(perf_counter() - start)} ms")
 
     instance.submit_callback(callback)
     instance.run()
