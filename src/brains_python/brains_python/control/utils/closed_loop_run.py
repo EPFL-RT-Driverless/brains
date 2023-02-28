@@ -7,7 +7,9 @@ from typing import Optional, Union, Callable
 import numpy as np
 import track_database as td
 from data_visualization import *
-from fsds_client import *
+
+# from fsds_client import *
+from fsds_client.new_client import FSDSClient
 
 from brains_python.common import Mission, sleep
 from brains_python.control.constants import *
@@ -44,7 +46,7 @@ class ClosedLoopRun:
     track: td.Track
     motion_planner_controller: MotionPlannerController
     autox_motion_planner: MotionPlanner
-    fsds_client: Optional[HighLevelClient]  # only for SIMIL mode
+    fsds_client: Optional[FSDSClient]  # only for SIMIL mode
     first_fsds_run: Optional[bool]
 
     # run params
@@ -98,8 +100,8 @@ class ClosedLoopRun:
         self.track = track
         # declare the FSDS client end check that it corresponds to the mission
         if simulation_mode == SimulationMode.SIMIL:
-            self.fsds_client = HighLevelClient()
-            fsds_map_name = self.fsds_client.get_map_name().removesuffix("_cones")
+            self.fsds_client = FSDSClient()
+            fsds_map_name = self.fsds_client.map_name
             assert (
                 fsds_map_name == track.name
             ), "FSDS client is not connected to the right track: {} instead of {}".format(
@@ -231,7 +233,7 @@ class ClosedLoopRun:
             and not self.first_fsds_run
             and self.simulation_mode == SimulationMode.SIMIL
         ):
-            self.fsds_client.low_level_client.restart()
+            self.fsds_client.restart()
             self.first_fsds_run = False
 
         # initialize MotionPlannerController =================================================
@@ -269,7 +271,7 @@ class ClosedLoopRun:
                         np.mod(self.states[-1][2] + np.pi, 2 * np.pi) - np.pi
                     )
                 else:
-                    self.states.append(self.fsds_client.get_state())
+                    self.states.append(self.fsds_client.get_state()[0])
 
             # STEP 3.2: check termination conditions ======================================
             if self.motion_planner_controller.stopping and (
@@ -382,7 +384,7 @@ class ClosedLoopRun:
 
             if self.simil:
                 start_send_control = perf_counter()
-                self.fsds_client.send_control(res.control[0], res.control[1])
+                self.fsds_client.set_control(res.control)
                 end_send_control = perf_counter()
                 send_control_time = end_send_control - start_send_control
                 self._status_message(
