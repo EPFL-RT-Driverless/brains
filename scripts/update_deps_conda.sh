@@ -8,4 +8,4 @@ if [[ $(conda env list | grep brains | wc -l) -eq 0 ]]; then
     exit 1
 fi
 
-conda env update --file env.yml
+mamba env update --file env.yml
