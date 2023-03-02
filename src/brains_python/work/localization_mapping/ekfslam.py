@@ -22,9 +22,11 @@ def run():
     track_name = "fsds_competition_1"
     vxmax = 10.0
     filename = f"{track_name}_{vxmax}.npz"
-    mode = EKFSLAMMode.MAPPING
+    mode = EKFSLAMMode.LOCALIZATION
     live_plot = False
     pause_time = 0.1
+    dead_reckoning_only = False
+    odometry_err_percentage = 4 / 100
 
     # load track and data =======================================================
     track = tdb.load_track(track_name)
@@ -66,11 +68,23 @@ def run():
         # odometry update
         true_state = data["states"][file_id]
         Q1 = (
-            np.array([0.04 * true_state[3], 0.04 * true_state[4], 0.04 * true_state[5]])
+            np.array(
+                [
+                    odometry_err_percentage * true_state[3],
+                    odometry_err_percentage * true_state[4],
+                    odometry_err_percentage * true_state[5],
+                ]
+            )
             ** 2
         )
         Q2 = (
-            np.array([0.04 * true_state[3], 0.04 * true_state[4], 0.04 * true_state[5]])
+            np.array(
+                [
+                    odometry_err_percentage * true_state[3],
+                    odometry_err_percentage * true_state[4],
+                    odometry_err_percentage * true_state[5],
+                ]
+            )
             * 2
         ) ** 2
         odometry_measurement = true_state[-3:] + np.random.multivariate_normal(
@@ -87,7 +101,10 @@ def run():
 
         # yaw update
         start = perf_counter()
-        slamer.yaw_update(yaw=true_state[2], yaw_uncertainty=1e-3)
+        slamer.yaw_update(
+            yaw=true_state[2] + 2e-2 * np.random.randn(1),
+            yaw_uncertainty=1e-3,
+        )
         stop = perf_counter()
         yaw_update_runtimes.append(1000 * (stop - start))
 
@@ -110,15 +127,17 @@ def run():
                 ]
             ).T
             start = perf_counter()
-            slamer.cones_update(
-                observations=observations,
-                observations_uncertainties=R2,
-            )
+            if not dead_reckoning_only:
+                slamer.cones_update(
+                    observations=observations,
+                    observations_uncertainties=R2,
+                )
             stop = perf_counter()
             cones_update_runtimes.append(1000 * (stop - start))
-            data_association_statistics = np.vstack(
-                (data_association_statistics, slamer.data_association_statistics)
-            )
+            if not dead_reckoning_only:
+                data_association_statistics = np.vstack(
+                    (data_association_statistics, slamer.data_association_statistics)
+                )
             if live_plot:
                 # plot stuff
                 plt.clf()

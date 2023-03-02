@@ -124,7 +124,7 @@ class EKFSLAM:
         self.Sigma[:3, 3:] = tpr
         self.Sigma[3:, :3] = tpr.T
 
-    def yaw_update(self, yaw: float, yaw_uncertainty: float = 1e-3):
+    def yaw_update(self, yaw: float, yaw_uncertainty: float = 2e-2):
         H = np.zeros(self.nx)
         H[2] = 1.0
         K = self.Sigma[:, 2] / (self.Sigma[2, 2] + yaw_uncertainty)  # Kalman gain
