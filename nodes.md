@@ -1,3 +1,4 @@
+# Whole pipeline
 ```mermaid
 flowchart TB
     subgraph input
@@ -9,24 +10,25 @@ flowchart TB
         subgraph lidar
             Lidar
             FSDSLidar
-            PointCloudFileAndYOLO
+            PointCloudFile
         end
-        subgraph sensors
-            CarSensors
-            FSDSCarSensors
+        subgraph low_level_velocity_estimation
+            LowLevelVelocityEstimation
+            FSDSMainNode
         end
     end
     subgraph output
-        CarController
-        FSDSCarController
+        subgraph low_level_control
+            CarController
+            FSDSMainNode2
+        end
+        Foxglove
     end
     subgraph vision
+        FSDSMockVision
         VisionFusion
         VisionCameraOnly
         VisionLidarOnly
-    end
-    subgraph velocity_estimation
-        VelocityEstimation1
     end
     subgraph localization_mapping
         EKFLocalization
@@ -39,22 +41,31 @@ flowchart TB
         ControlKnownTrack
         ControlAutoX
     end
+
     %% vision input
     camera -- BoundingBoxes --> VisionCameraOnly & VisionFusion
     lidar -- PointCloud --> VisionLidarOnly & VisionFusion
     %% vision output
-    vision -- RelConesPositions --> localization_mapping
+    vision -- ConesObservations --> localization_mapping
     %% sensors output
-    sensors -- IMUData --> velocity_estimation
-    sensors -- GSSData --> velocity_estimation
-    sensors -- WSSData --> velocity_estimation
+    %% sensors -- IMUData --> velocity_estimation
+    %% sensors -- GSSData --> velocity_estimation
+    %% sensors -- WSSData --> velocity_estimation
     %% VE output
-    velocity_estimation -- VelocityEstimation --> vision & localization_mapping & control
+    low_level_velocity_estimation -- VelocityEstimation --> vision & localization_mapping & control
     %% localization_mapping output
     EKFLocalization -- Pose --> ControlKnownTrack
     slam -- Pose --> ControlAutoX
     slam -- CenterLineWidths --> ControlAutoX
     %% control output
-    control -- CarControls --> CarController & FSDSCarController
+    control -- CarControls --> low_level_control
+    %% extra
+    %% RES?
 
 ```
+
+# Control only
+
+# Vision & loc only
+
+#

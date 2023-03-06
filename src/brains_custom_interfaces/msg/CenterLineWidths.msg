@@ -1,4 +1,5 @@
 # CenterLineWidths
+std_msgs/Header header
 float64[] x
 float64[] y
 float64[] right_width
