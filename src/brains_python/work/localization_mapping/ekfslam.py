@@ -3,6 +3,7 @@ from time import perf_counter
 
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.patches import Ellipse, Rectangle
 from tqdm import tqdm
 
 import track_database as tdb
@@ -208,6 +209,7 @@ def run():
     if not live_plot:
         track = tdb.load_track(track_name)
         fig = plt.figure(figsize=(10, 10))
+        ax = fig.add_subplot(111)
         plot_cones(
             track.blue_cones,
             track.yellow_cones,
@@ -219,8 +221,37 @@ def run():
         plt.tight_layout()
         plt.plot(true_poses[:, 0], true_poses[:, 1], "g-", label="True trajectory")
         plt.plot(poses[:, 0], poses[:, 1], "b-", label="Estimated trajectory")
-        plt.scatter(slamer.map[:, 0], slamer.map[:, 1], c="r", label="Map")
+        plt.scatter(slamer.map[:, 0], slamer.map[:, 1], s=10, c="r", label="Map")
+
+        # plot landmarks covariance ellipses
+        for i in range(slamer.map.shape[0]):
+            x, y = slamer.map[i, :]
+            cov = slamer.Sigma[3 + 2 * i : 3 + 2 * i + 2, 3 + 2 * i : 3 + 2 * i + 2]
+            lam, v = np.linalg.eig(cov)
+            lam = np.sqrt(lam)
+            angle = np.rad2deg(np.arctan2(v[1, 0], v[0, 0]))
+            angle = np.rad2deg(np.arccos(v[0, 0]))
+            print(
+                "x: {}, y: {}, lam: {}, angle : {}, cov : {}".format(
+                    x, y, lam, angle, cov
+                )
+            )
+            ell = Ellipse(
+                xy=(x, y),
+                width=2 * 5e2 * lam[0],
+                height=2 * 5e2 * lam[1],
+                angle=angle,
+            )
+            ell.set_facecolor("none")
+            ell.set_edgecolor("r")
+            if i == 0:
+                ell.set_label(r"Landmark covariance ($\times 500$)")
+
+            ax.add_patch(ell)
+
         plt.legend()
+        plt.xlim(-70, -30)
+        plt.ylim(-30, 30)
         plt.savefig("ekfslam.png", dpi=300)
         plt.show()
 
