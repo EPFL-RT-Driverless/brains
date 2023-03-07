@@ -1,12 +1,12 @@
 #include "brains_custom_interfaces/msg/car_controls.hpp"
 #include "brains_custom_interfaces/msg/car_state.hpp"
 #include "brains_custom_interfaces/msg/velocity_estimation.hpp"
-#include "brains_custom_interfaces/srv/enable_apifsds.hpp"
+#include "brains_custom_interfaces/msg/wss_data.hpp"
+#include "brains_custom_interfaces/srv/enable_api_fsds.hpp"
 #include "brains_custom_interfaces/srv/map_name_fsds.hpp"
 #include "brains_custom_interfaces/srv/restart_fsds.hpp"
 #include "brains_fsds_bridge/common.hpp"
 #include "common/AirSimSettings.hpp"
-#include "fs_msgs/msg/wheel_states.hpp"
 #include "geometry_msgs/msg/twist_with_covariance_stamped.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/imu.hpp"
@@ -38,7 +38,7 @@ private:
     // publishers
     std::shared_ptr<rclcpp::Publisher<brains_custom_interfaces::msg::CarState>> car_state_pub;
     std::shared_ptr<rclcpp::Publisher<brains_custom_interfaces::msg::VelocityEstimation>> velocity_estimation_pub;
-    std::shared_ptr<rclcpp::Publisher<fs_msgs::msg::WheelStates>> wss_pub;
+    std::shared_ptr<rclcpp::Publisher<brains_custom_interfaces::msg::WssData>> wss_pub;
     std::shared_ptr<rclcpp::Publisher<geometry_msgs::msg::TwistWithCovarianceStamped>> gss_pub;
     PublisherMap<sensor_msgs::msg::Imu> imu_pubs;
     PublisherMap<sensor_msgs::msg::NavSatFix> gps_pubs;
@@ -53,7 +53,7 @@ private:
     // services
     std::shared_ptr<rclcpp::Service<brains_custom_interfaces::srv::RestartFSDS>> restart_srv;
     std::shared_ptr<rclcpp::Service<brains_custom_interfaces::srv::MapNameFSDS>> map_name_srv;
-    std::shared_ptr<rclcpp::Service<brains_custom_interfaces::srv::EnableAPIFSDS>> enable_api_srv;
+    std::shared_ptr<rclcpp::Service<brains_custom_interfaces::srv::EnableApiFSDS>> enable_api_srv;
     // statistics
     brains_fsds_bridge::Statistics car_state_statistics;
     brains_fsds_bridge::Statistics car_controls_statistics;
@@ -109,10 +109,6 @@ private:
             return;
         }
 
-        // state has fields pose, twist and accelerations
-        // pose -> position (Vector3), orientation (Quaternionr)
-        // twist -> linear (Vector3), angular (Vector3)
-        // accelerations -> linear (Vector3), angular (Vector3)
         double x = state.pose.orientation.x(), y = state.pose.orientation.y(), z = state.pose.orientation.z(), w = state.pose.orientation.w();
         brains_custom_interfaces::msg::CarState car_state_msg;
         car_state_msg.header.stamp = this->now();
@@ -182,8 +178,8 @@ private:
             return;
         }
     }
-    void enable_api_callback(const brains_custom_interfaces::srv::EnableAPIFSDS::Request::SharedPtr req,
-        brains_custom_interfaces::srv::EnableAPIFSDS::Response::SharedPtr res)
+    void enable_api_callback(const brains_custom_interfaces::srv::EnableApiFSDS::Request::SharedPtr req,
+        brains_custom_interfaces::srv::EnableApiFSDS::Response::SharedPtr res)
     {
         try {
             this->rpc_client->enableApiControl(req->enabled, vehicle_name);
@@ -205,7 +201,7 @@ private:
             return;
         }
 
-        fs_msgs::msg::WheelStates wss_msg;
+        brains_custom_interfaces::msg::WssData wss_msg;
 
         wss_msg.header.stamp = this->now();
 
@@ -214,15 +210,7 @@ private:
         wss_msg.rl_rpm = data.rl.rpm;
         wss_msg.rr_rpm = data.rr.rpm;
 
-        wss_msg.fl_rotation_angle = data.fl.rotation_angle;
-        wss_msg.fr_rotation_angle = data.fr.rotation_angle;
-        wss_msg.rl_rotation_angle = data.rl.rotation_angle;
-        wss_msg.rr_rotation_angle = data.rr.rotation_angle;
-
-        wss_msg.fl_steering_angle = data.fl.steering_angle;
-        wss_msg.fr_steering_angle = data.fr.steering_angle;
-        wss_msg.rl_steering_angle = data.rl.steering_angle;
-        wss_msg.rr_steering_angle = data.rr.steering_angle;
+        wss_msg.steering_angle = data.fl.steering_angle;
 
         wss_pub->publish(wss_msg);
         wss_statistics.increment_msg_count();
@@ -338,7 +326,7 @@ public:
             std::chrono::duration<double>(1.0 / car_state_freq),
             std::bind(&MainNode::car_state_callback, this));
         if (wss_freq > 0.0) {
-            wss_pub = this->create_publisher<fs_msgs::msg::WheelStates>("/fsds/wss", 10);
+            wss_pub = this->create_publisher<brains_custom_interfaces::msg::WssData>("/fsds/wss", 10);
             wss_timer = this->create_wall_timer(
                 std::chrono::duration<double>(1.0 / wss_freq),
                 std::bind(&MainNode::wss_callback, this));
@@ -350,7 +338,7 @@ public:
             "/fsds/restart", std::bind(&MainNode::restart_callback, this, std::placeholders::_1, std::placeholders::_2));
         map_name_srv = this->create_service<brains_custom_interfaces::srv::MapNameFSDS>(
             "/fsds/map_name", std::bind(&MainNode::map_name_callback, this, std::placeholders::_1, std::placeholders::_2));
-        enable_api_srv = this->create_service<brains_custom_interfaces::srv::EnableAPIFSDS>(
+        enable_api_srv = this->create_service<brains_custom_interfaces::srv::EnableApiFSDS>(
             "/fsds/enable_api", std::bind(&MainNode::enable_api_callback, this, std::placeholders::_1, std::placeholders::_2));
 
         // load settings.json

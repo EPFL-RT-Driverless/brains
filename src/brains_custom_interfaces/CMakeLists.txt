@@ -41,11 +41,12 @@ set(msg_files
   "msg/Pose2D.msg"
   "msg/ConesObservations.msg"
   "msg/VelocityEstimation.msg"
+  "msg/WssData.msg"
 )
 set(srv_files
   "srv/RestartFSDS.srv"
   "srv/MapNameFSDS.srv"
-  "srv/EnableAPIFSDS.srv"
+  "srv/EnableApiFSDS.srv"
 )
 rosidl_generate_interfaces(${PROJECT_NAME}
   ${msg_files}
