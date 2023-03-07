@@ -68,7 +68,7 @@ private:
         dbg_msg << "--------- brains_fsds_bridge statistics ---------" << std::endl;
         dbg_msg << car_state_statistics.summary() << std::endl;
         dbg_msg << car_controls_statistics.summary() << std::endl;
-        dbg_msg << wss_statistics.summary() << std::endl;
+        dbg_msg << gss_statistics.summary() << std::endl;
         if (wss_timer) {
             dbg_msg << wss_statistics.summary() << std::endl;
         }
@@ -79,7 +79,7 @@ private:
             dbg_msg << s.second.summary() << std::endl;
         }
         dbg_msg << "------------------------------------------" << std::endl;
-        RCLCPP_DEBUG(this->get_logger(), "%s", dbg_msg.str().c_str());
+        RCLCPP_INFO(this->get_logger(), "%s", dbg_msg.str().c_str());
     }
     void reset_statistics() override
     {

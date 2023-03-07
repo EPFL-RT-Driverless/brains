@@ -50,7 +50,7 @@ private:
         dbg_msg << "--------- brains_fsds_bridge statistics ---------" << std::endl;
         dbg_msg << image_statistics.summary() << std::endl;
         dbg_msg << "------------------------------------------" << std::endl;
-        RCLCPP_DEBUG(this->get_logger(), "%s", dbg_msg.str().c_str());
+        RCLCPP_INFO(this->get_logger(), "%s", dbg_msg.str().c_str());
     }
     void reset_statistics() override
     {
@@ -62,7 +62,7 @@ public:
         : BaseClient("camera_node")
     {
         auto camera_name = this->declare_parameter<std::string>("camera_name", "camera");
-        auto framerate = this->declare_parameter<int>("framerate", 20);
+        auto framerate = this->declare_parameter<double>("framerate", 60.0);
         // load settings.json and check that camera_name exists. If not, print fatal error and exit.
         try {
             std::string settings_text = rpc_client->getSettingsString();

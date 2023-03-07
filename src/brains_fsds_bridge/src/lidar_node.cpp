@@ -63,7 +63,7 @@ private:
         dbg_msg << "--------- brains_fsds_bridge statistics ---------" << std::endl;
         dbg_msg << lidar_statistics.summary() << std::endl;
         dbg_msg << "------------------------------------------" << std::endl;
-        RCLCPP_DEBUG(this->get_logger(), "%s", dbg_msg.str().c_str());
+        RCLCPP_INFO(this->get_logger(), "%s", dbg_msg.str().c_str());
     }
     void reset_statistics() override
     {
@@ -72,7 +72,7 @@ private:
 
 public:
     CameraNode()
-        : BaseClient("camera_node")
+        : BaseClient("lidar_node")
     {
         auto lidar_name = this->declare_parameter<std::string>("lidar_name", "lidar");
         // load settings.json and check that lidar_name exists. If not, print fatal error and exit.

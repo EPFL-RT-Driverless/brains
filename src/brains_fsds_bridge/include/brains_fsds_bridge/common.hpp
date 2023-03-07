@@ -169,10 +169,7 @@ public:
         auto statistics_freq = this->declare_parameter<double>("statistics_freq", 1.0);
 
         this->setup_airsim();
-        this->create_wall_timer(std::chrono::duration<double>(1.0 / statistics_freq), [this]() {
-            RCLCPP_INFO(this->get_logger(), "publishing statistics");
-            std::cout << "============================\n"
-                      << std::endl;
+        statistics_timer = this->create_wall_timer(std::chrono::duration<double>(1.0 / statistics_freq), [this]() {
             this->print_statistics();
             this->reset_statistics();
         });
