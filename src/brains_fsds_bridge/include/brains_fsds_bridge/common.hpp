@@ -184,6 +184,22 @@ public:
     //     Statistics::AutoTimer timer(stats);
     //     return (rpc_client->*method_name)(args...);
     // }
+    template<typename ReturnType, typename ArgType>
+    T call_rpc_method_one_arg(Statistics& statistics, ReturnType (msr::airlib::CarRpcLibClient::*method_name)(ArgType), ArgType arg)
+    {
+        std::lock_guard<std::recursive_mutex> lock(rpc_mutex);
+        Statistics::AutoTimer timer(statistics);
+        return (rpc_client->(*method_name))(arg);
+    }
+
+    template<typename ReturnType, typename ArgType1, typename ArgType2>
+    T call_rpc_method_two_args(Statistics& statistics, ReturnType (msr::airlib::CarRpcLibClient::*method_name)(ArgType1, ArgType2), ArgType1 arg1, ArgType2 arg2)
+    {
+        std::lock_guard<std::recursive_mutex> lock(rpc_mutex);
+        Statistics::AutoTimer timer(statistics);
+        return (rpc_client->(*method_name))(arg1, arg2);
+    }
+
 };
 } // namespace brains_fsds_bridge
 #endif // BRAINS_FSDS_BRIDGE_COMMON_HPP

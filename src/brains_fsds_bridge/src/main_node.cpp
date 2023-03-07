@@ -162,7 +162,10 @@ private:
         brains_custom_interfaces::srv::RestartFSDS::Response::SharedPtr res)
     {
         try {
+            std::lock_guard<std::recursive_mutex> lock(this->rpc_mutex);
             this->rpc_client->restart();
+            this->sleep_for(1s);
+            // TODO: restart
         } catch (const std::exception& e) {
             RCLCPP_ERROR(this->get_logger(), "Exception in restart_callback: %s", e.what());
             return;
