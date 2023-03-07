@@ -1,12 +1,10 @@
 #ifndef BRAINS_FSDS_BRIDGE_COMMON_HPP
 #include "common/common_utils/StrictMode.hpp"
-// STRICT_MODE_OFF // todo what does this do?
 #ifndef RPCLIB_MSGPACK
 #define RPCLIB_MSGPACK clmdep_msgpack
 #endif // !RPCLIB_MSGPACK
-#include "rpc/rpc_error.h"
-// STRICT_MODE_ON
 #include "rclcpp/rclcpp.hpp"
+#include "rpc/rpc_error.h"
 #include "vehicles/car/api/CarRpcLibClient.hpp"
 #include <algorithm>
 #include <chrono>
@@ -173,7 +171,8 @@ public:
         this->setup_airsim();
         this->create_wall_timer(std::chrono::duration<double>(1.0 / statistics_freq), [this]() {
             RCLCPP_INFO(this->get_logger(), "publishing statistics");
-            std::cout << "============================\n" << std::endl;
+            std::cout << "============================\n"
+                      << std::endl;
             this->print_statistics();
             this->reset_statistics();
         });
@@ -181,6 +180,13 @@ public:
 
     // TODO: method wrapper that locks the rpc mutex before calling the method.
     // It also instantiates the AutoTimer object which will record the duration of the method call.
+    // template <typename T, typename Args...>
+    // T call_rpc_method(Statistics& stats, T (msr::airlib::CarRpcLibClient::*method_name)(Args...), Args... args)
+    // {
+    //     std::lock_guard<std::recursive_mutex> lock(rpc_mutex);
+    //     Statistics::AutoTimer timer(stats);
+    //     return (rpc_client->*method_name)(args...);
+    // }
 };
 } // namespace brains_fsds_bridge
 #endif // BRAINS_FSDS_BRIDGE_COMMON_HPP

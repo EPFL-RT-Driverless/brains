@@ -7,7 +7,7 @@ fi
 # makes sure that the correct python interpreter is called in CMake
 PYTHON_EXE=$(which python3)
 # colcon build with all the right options
-PYTHONWARNINGS=ignore:::setuptools.command.install,ignore:::setuptools.command.easy_install,ignore:::pkg_resources colcon build --symlink-install --cmake-args "-DPython3_EXECUTABLE=$PYTHON_EXE -DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
+PYTHONWARNINGS=ignore:::setuptools.command.install,ignore:::setuptools.command.easy_install,ignore:::pkg_resources colcon build --symlink-install --cmake-args -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -G Ninja -DPython3_EXECUTABLE=$PYTHON_EXE
 # check current shell (bash or zsh) and source the apprioriate setup file
 if [ -n "$BASH_VERSION" ]; then
   source install/setup.bash
