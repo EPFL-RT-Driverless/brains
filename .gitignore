@@ -1,5 +1,5 @@
 # IDE config files
-.idea
+.idea*
 .vscode
 
 # Python output
