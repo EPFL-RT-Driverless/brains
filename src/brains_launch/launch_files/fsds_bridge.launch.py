@@ -61,7 +61,7 @@ def generate_launch_description():
             ),
             *[
                 launch_ros.actions.Node(
-                    package="brains_fsds_bridge",
+                    package="brains_cpp",
                     executable="camera_node",
                     name=camera_name,
                     output="screen",
@@ -94,7 +94,7 @@ def generate_launch_description():
             ],
             *[
                 launch_ros.actions.Node(
-                    package="brains_fsds_bridge",
+                    package="brains_cpp",
                     executable="lidar_node",
                     name=lidar_name,
                     output="screen",
@@ -121,7 +121,7 @@ def generate_launch_description():
                 for i, lidar_name in enumerate(lidar_names)
             ],
             launch_ros.actions.Node(
-                package="brains_fsds_bridge",
+                package="brains_cpp",
                 executable="main_node",
                 name="main_node",
                 output="screen",

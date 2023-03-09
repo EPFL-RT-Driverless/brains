@@ -34,6 +34,7 @@ private:
     std::string vehicle_name;
     std::random_device rd;
     std::mt19937 gen = std::mt19937(127);
+    double max_steering = 0.79;
 
     // publishers
     std::shared_ptr<rclcpp::Publisher<brains_custom_interfaces::msg::CarState>> car_state_pub;
@@ -143,7 +144,7 @@ private:
             controls.brake = msg->throttle;
             controls.throttle = 0.0;
         }
-        controls.steering = -std::min(std::max(msg->steering, -1.0), 1.0);
+        controls.steering = -std::min(std::max(msg->steering/this->max_steering, -1.0), 1.0);
 
         rpc_call_wrapper(
                 [this, &controls]() {
@@ -397,6 +398,16 @@ public:
                     }
                 }
             }
+        }
+        if (!manual_mode) {
+            // start the client
+            auto req = std::make_shared<brains_custom_interfaces::srv::EnableApiFSDS::Request>();
+            auto res = std::make_shared<brains_custom_interfaces::srv::EnableApiFSDS::Response>();
+            req->enabled = true;
+            this->enable_api_callback(req, res);
+            RCLCPP_INFO(this->get_logger(), "Enabled API control");
+        } else {
+            RCLCPP_INFO(this->get_logger(), "Enables manual control");
         }
     }
 

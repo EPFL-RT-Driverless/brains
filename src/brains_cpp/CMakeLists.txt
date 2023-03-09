@@ -43,22 +43,22 @@ include_directories(
 )
 
 # package libs and executables =================================================
-ament_auto_add_executable(main_node
+ament_auto_add_executable(fsds_main_node
 						  src/fsds/fsds_main_node.cpp
 						  include/brains_cpp/common.hpp
 						  )
-target_link_libraries(main_node AirLib ${OpenCV_LIBS} ${libcurl_LIBRARIES} ${CXX_EXP_LIB})
+target_link_libraries(fsds_main_node AirLib ${OpenCV_LIBS} ${libcurl_LIBRARIES} ${CXX_EXP_LIB})
 
-ament_auto_add_executable(camera_node
+ament_auto_add_executable(fsds_camera_node
 						  src/fsds/fsds_camera_node.cpp
 						  include/brains_cpp/common.hpp
 						  )
-target_link_libraries(camera_node AirLib ${OpenCV_LIBS} ${libcurl_LIBRARIES} ${CXX_EXP_LIB})
+target_link_libraries(fsds_camera_node AirLib ${OpenCV_LIBS} ${libcurl_LIBRARIES} ${CXX_EXP_LIB})
 
-ament_auto_add_executable(lidar_node
+ament_auto_add_executable(fsds_lidar_node
 						  src/fsds/fsds_lidar_node.cpp
 						  include/brains_cpp/common.hpp
 						  )
-target_link_libraries(lidar_node AirLib ${OpenCV_LIBS} ${libcurl_LIBRARIES} ${CXX_EXP_LIB})
+target_link_libraries(fsds_lidar_node AirLib ${OpenCV_LIBS} ${libcurl_LIBRARIES} ${CXX_EXP_LIB})
 
 ament_auto_package(INSTALL_TO_SHARE)

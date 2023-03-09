@@ -22,6 +22,9 @@ log
 .DS_Store
 
 # control stuff ====================
+# acados output
+ihm_acados_ocp.json
+ihm_acados_gen_code
 # forcespro solvers
 ihm_solver*
 *.forces
