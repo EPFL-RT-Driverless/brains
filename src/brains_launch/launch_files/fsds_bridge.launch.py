@@ -4,8 +4,6 @@ import launch_ros.actions
 from os.path import expanduser
 import json
 
-CAMERA_FRAMERATE = 30.0
-
 
 def generate_launch_description():
     with open(
@@ -15,8 +13,16 @@ def generate_launch_description():
 
     vehicle_name = list(settings["Vehicles"].keys())[0]
     print("Vehicle name: ", vehicle_name)
-    lidar_names = [k for k,v in settings["Vehicles"][vehicle_name]["Sensors"].items() if v["SensorType"] == 6]
-    camera_names = [k for k,v in settings["Vehicles"][vehicle_name]["Cameras"].items() if v["CaptureSettings"][0]["ImageType"] == 0]
+    lidar_names = [
+        k
+        for k, v in settings["Vehicles"][vehicle_name]["Sensors"].items()
+        if v["SensorType"] == 6
+    ]
+    camera_names = [
+        k
+        for k, v in settings["Vehicles"][vehicle_name]["Cameras"].items()
+        if v["CaptureSettings"][0]["ImageType"] == 0
+    ]
     print("Camera names: ", camera_names)
     print("Lidar names: ", lidar_names)
 
@@ -25,9 +31,7 @@ def generate_launch_description():
             launch.actions.DeclareLaunchArgument(
                 name="host_ip", default_value="localhost"
             ),
-            launch.actions.DeclareLaunchArgument(
-                name="timeout", default_value="1.0"
-            ),
+            launch.actions.DeclareLaunchArgument(name="timeout", default_value="1.0"),
             launch.actions.DeclareLaunchArgument(
                 name="manual_mode", default_value="false"
             ),
@@ -63,11 +67,27 @@ def generate_launch_description():
                     output="screen",
                     on_exit=launch.actions.Shutdown(),
                     parameters=[
-                        {"host_ip": launch.substitutions.LaunchConfiguration("host_ip")},
-                        {"timeout": launch.substitutions.LaunchConfiguration("timeout")},
-                        {"statistics_freq": launch.substitutions.LaunchConfiguration("statistics_freq")},
+                        {
+                            "host_ip": launch.substitutions.LaunchConfiguration(
+                                "host_ip"
+                            )
+                        },
+                        {
+                            "timeout": launch.substitutions.LaunchConfiguration(
+                                "timeout"
+                            )
+                        },
+                        {
+                            "statistics_freq": launch.substitutions.LaunchConfiguration(
+                                "statistics_freq"
+                            )
+                        },
                         {"camera_name": camera_name},
-                        {"framerate": launch.substitutions.LaunchConfiguration("camera_framerate")},
+                        {
+                            "framerate": launch.substitutions.LaunchConfiguration(
+                                "camera_framerate"
+                            )
+                        },
                     ],
                 )
                 for i, camera_name in enumerate(camera_names)
@@ -80,9 +100,21 @@ def generate_launch_description():
                     output="screen",
                     on_exit=launch.actions.Shutdown(),
                     parameters=[
-                        {"host_ip": launch.substitutions.LaunchConfiguration("host_ip")},
-                        {"timeout": launch.substitutions.LaunchConfiguration("timeout")},
-                        {"statistics_freq": launch.substitutions.LaunchConfiguration("statistics_freq")},
+                        {
+                            "host_ip": launch.substitutions.LaunchConfiguration(
+                                "host_ip"
+                            )
+                        },
+                        {
+                            "timeout": launch.substitutions.LaunchConfiguration(
+                                "timeout"
+                            )
+                        },
+                        {
+                            "statistics_freq": launch.substitutions.LaunchConfiguration(
+                                "statistics_freq"
+                            )
+                        },
                         {"lidar_name": lidar_name},
                     ],
                 )
@@ -97,13 +129,33 @@ def generate_launch_description():
                 parameters=[
                     {"host_ip": launch.substitutions.LaunchConfiguration("host_ip")},
                     {"timeout": launch.substitutions.LaunchConfiguration("timeout")},
-                    {"statistics_freq": launch.substitutions.LaunchConfiguration("statistics_freq")},
-                    {"manual_mode": launch.substitutions.LaunchConfiguration("manual_mode")},
-                    {"car_state_freq": launch.substitutions.LaunchConfiguration("state_freq")},
-                    {"imu_freqs": launch.substitutions.LaunchConfiguration("imu_freqs")},
+                    {
+                        "statistics_freq": launch.substitutions.LaunchConfiguration(
+                            "statistics_freq"
+                        )
+                    },
+                    {
+                        "manual_mode": launch.substitutions.LaunchConfiguration(
+                            "manual_mode"
+                        )
+                    },
+                    {
+                        "car_state_freq": launch.substitutions.LaunchConfiguration(
+                            "state_freq"
+                        )
+                    },
+                    {
+                        "imu_freqs": launch.substitutions.LaunchConfiguration(
+                            "imu_freqs"
+                        )
+                    },
                     {"wss_freq": launch.substitutions.LaunchConfiguration("wss_freq")},
                     {"gss_freq": launch.substitutions.LaunchConfiguration("gss_freq")},
-                    {"gps_freqs": launch.substitutions.LaunchConfiguration("gps_freqs")},
+                    {
+                        "gps_freqs": launch.substitutions.LaunchConfiguration(
+                            "gps_freqs"
+                        )
+                    },
                 ],
             ),
         ]

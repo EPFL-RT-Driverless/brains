@@ -5,7 +5,7 @@
 #include "brains_custom_interfaces/srv/enable_api_fsds.hpp"
 #include "brains_custom_interfaces/srv/map_name_fsds.hpp"
 #include "brains_custom_interfaces/srv/restart_fsds.hpp"
-#include "brains_fsds_bridge/common.hpp"
+#include "brains_cpp/common.hpp"
 #include "common/AirSimSettings.hpp"
 #include "geometry_msgs/msg/twist_with_covariance_stamped.hpp"
 #include "rclcpp/rclcpp.hpp"
@@ -62,8 +62,7 @@ private:
     StatisticsMap imu_statistics;
     StatisticsMap gps_statistics;
 
-    void print_statistics() override
-    {
+    void print_statistics() override {
         std::stringstream dbg_msg;
         dbg_msg << "--------- brains_fsds_bridge statistics ---------" << std::endl;
         dbg_msg << car_state_statistics.summary() << std::endl;
@@ -81,8 +80,8 @@ private:
         dbg_msg << "------------------------------------------" << std::endl;
         RCLCPP_INFO(this->get_logger(), "%s", dbg_msg.str().c_str());
     }
-    void reset_statistics() override
-    {
+
+    void reset_statistics() override {
         car_state_statistics.reset();
         car_controls_statistics.reset();
         if (wss_timer) {
@@ -96,18 +95,16 @@ private:
         }
         gss_statistics.reset();
     }
-    void car_state_callback()
-    {
+
+    void car_state_callback() {
         // TODO: replace the following block with a templated method in BaseClient
         msr::airlib::Kinematics::State state;
-        try {
-            std::lock_guard<std::recursive_mutex> lock(this->rpc_mutex);
-            brains_fsds_bridge::Statistics::AutoTimer timer(car_state_statistics);
-            state = this->rpc_client->simGetGroundTruthKinematics(vehicle_name);
-        } catch (const std::exception& e) {
-            RCLCPP_ERROR(this->get_logger(), "Exception in car_state_callback: %s", e.what());
-            return;
-        }
+        rpc_call_wrapper(
+                [this, &state]() {
+                    state = this->rpc_client->simGetGroundTruthKinematics(vehicle_name);
+                },
+                "car_state_callback",
+                &car_state_statistics);
 
         double x = state.pose.orientation.x(), y = state.pose.orientation.y(), z = state.pose.orientation.z(), w = state.pose.orientation.w();
         brains_custom_interfaces::msg::CarState car_state_msg;
@@ -135,9 +132,8 @@ private:
         velocity_estimation_msg.r += err_percentage * velocity_estimation_msg.r * std::gamma_distribution<double>(0.0)(rd);
         velocity_estimation_pub->publish(velocity_estimation_msg);
     }
-    void car_controls_callback(const brains_custom_interfaces::msg::CarControls::SharedPtr msg)
-    {
 
+    void car_controls_callback(const brains_custom_interfaces::msg::CarControls::SharedPtr msg) {
         msr::airlib::CarApiBase::CarControls controls;
         msg->throttle = std::min(std::max(msg->throttle, -1.0), 1.0);
         if (msg->throttle >= 0.0) {
@@ -149,60 +145,53 @@ private:
         }
         controls.steering = -std::min(std::max(msg->steering, -1.0), 1.0);
 
-        // TODO: replace the following block with a templated method in BaseClient
-        try {
-            std::lock_guard<std::recursive_mutex> lock(this->rpc_mutex);
-            this->rpc_client->setCarControls(controls, vehicle_name);
-        } catch (const std::exception& e) {
-            RCLCPP_ERROR(this->get_logger(), "Exception in car_state_callback: %s", e.what());
-            return;
-        }
+        rpc_call_wrapper(
+                [this, &controls]() {
+                    this->rpc_client->setCarControls(controls, vehicle_name);
+                },
+                "car_state_callback");
     }
+
     void restart_callback(const brains_custom_interfaces::srv::RestartFSDS::Request::SharedPtr req,
-        brains_custom_interfaces::srv::RestartFSDS::Response::SharedPtr res)
-    {
-        try {
-            std::lock_guard<std::recursive_mutex> lock(this->rpc_mutex);
-            this->rpc_client->restart();
-            this->sleep_for(1s);
-            // TODO: restart
-        } catch (const std::exception& e) {
-            RCLCPP_ERROR(this->get_logger(), "Exception in restart_callback: %s", e.what());
-            return;
-        }
+                          brains_custom_interfaces::srv::RestartFSDS::Response::SharedPtr res) {
+        rpc_call_wrapper(
+                [this]() {
+                    this->rpc_client->restart();
+                    // sleep for 1 second (this->timeout)
+                    rclcpp::sleep_for(std::chrono::seconds(1));
+                    this->setup_airsim();
+                },
+                "restart_callback");
     }
+
     void map_name_callback(const brains_custom_interfaces::srv::MapNameFSDS::Request::SharedPtr req,
-        brains_custom_interfaces::srv::MapNameFSDS::Response::SharedPtr res)
-    {
-        try {
-            res->map_name = this->rpc_client->getMap();
-        } catch (const std::exception& e) {
-            RCLCPP_ERROR(this->get_logger(), "Exception in map_name_callback: %s", e.what());
-            return;
-        }
+                           brains_custom_interfaces::srv::MapNameFSDS::Response::SharedPtr res) {
+        rpc_call_wrapper(
+                [this, res]() {
+                    res->map_name = this->rpc_client->getMap();
+                },
+                "map_name_callback");
     }
+
     void enable_api_callback(const brains_custom_interfaces::srv::EnableApiFSDS::Request::SharedPtr req,
-        brains_custom_interfaces::srv::EnableApiFSDS::Response::SharedPtr res)
-    {
-        try {
-            this->rpc_client->enableApiControl(req->enabled, vehicle_name);
-        } catch (const std::exception& e) {
-            RCLCPP_ERROR(this->get_logger(), "Exception in enable_api_callback: %s", e.what());
-            return;
-        }
+                             brains_custom_interfaces::srv::EnableApiFSDS::Response::SharedPtr res) {
+        // TODO: replace the following block with a templated method in BaseClient
+        rpc_call_wrapper(
+                [this, req]() {
+                    this->rpc_client->enableApiControl(req->enabled, vehicle_name);
+                },
+                "enable_api_callback");
     }
-    void wss_callback()
-    {
+
+    void wss_callback() {
         // TODO: replace the following block with a templated method in BaseClient
         msr::airlib::WheelStates data;
-        try {
-            std::lock_guard<std::recursive_mutex> lock(this->rpc_mutex);
-            brains_fsds_bridge::Statistics::AutoTimer timer(wss_statistics);
-            data = this->rpc_client->simGetWheelStates(vehicle_name);
-        } catch (const std::exception& e) {
-            RCLCPP_ERROR(this->get_logger(), "Exception in car_state_callback: %s", e.what());
-            return;
-        }
+        rpc_call_wrapper(
+                [this, &data]() {
+                    data = this->rpc_client->simGetWheelStates(vehicle_name);
+                },
+                "car_state_callback",
+                &wss_statistics);
 
         brains_custom_interfaces::msg::WssData wss_msg;
 
@@ -218,17 +207,17 @@ private:
         wss_pub->publish(wss_msg);
         wss_statistics.increment_msg_count();
     }
-    void imu_callback(std::string imu_name)
-    {
+
+    void imu_callback(std::string imu_name) {
+        // TODO: replace the following block with a templated method in BaseClient
         msr::airlib::ImuBase::Output data;
-        try {
-            std::lock_guard<std::recursive_mutex> lock(this->rpc_mutex);
-            brains_fsds_bridge::Statistics::AutoTimer timer(imu_statistics[imu_name]);
-            data = this->rpc_client->getImuData(imu_name, vehicle_name);
-        } catch (const std::exception& e) {
-            RCLCPP_ERROR(this->get_logger(), "Exception in imu_callback: %s", e.what());
-            return;
-        }
+        rpc_call_wrapper(
+                [this, &data, imu_name]() {
+                    data = this->rpc_client->getImuData(imu_name, vehicle_name);
+                },
+                "imu_callback",
+                &(imu_statistics[imu_name]));
+
         sensor_msgs::msg::Imu imu_msg;
         imu_msg.header.stamp = this->now();
         // imu_msg->header.frame_id = "imu_" + sensor_name;  // TODO: add frame_id to airsim
@@ -251,17 +240,17 @@ private:
         this->imu_pubs[imu_name]->publish(imu_msg);
         imu_statistics[imu_name].increment_msg_count();
     }
-    void gps_callback(std::string gps_name)
-    {
+
+    void gps_callback(std::string gps_name) {
+        // TODO: replace the following block with a templated method in BaseClient
         msr::airlib::GpsBase::Output data;
-        try {
-            std::lock_guard<std::recursive_mutex> lock(this->rpc_mutex);
-            brains_fsds_bridge::Statistics::AutoTimer timer(gps_statistics[gps_name]);
-            data = this->rpc_client->getGpsData(gps_name, vehicle_name);
-        } catch (const std::exception& e) {
-            RCLCPP_ERROR(this->get_logger(), "Exception in gps_callback: %s", e.what());
-            return;
-        }
+        rpc_call_wrapper(
+                [this, &data, gps_name]() {
+                    data = this->rpc_client->getGpsData(gps_name, vehicle_name);
+                },
+                "gps_callback",
+                &(gps_statistics[gps_name]));
+
         sensor_msgs::msg::NavSatFix gps_msg;
         // gps_msg.header.frame_id = "fsds/" + vehicle_name;  // TODO: add frame_id to airsim
         msr::airlib::GeoPoint gps_location = data.gnss.geo_point;
@@ -276,17 +265,17 @@ private:
         this->gps_pubs[gps_name]->publish(gps_msg);
         this->gps_statistics[gps_name].increment_msg_count();
     }
-    void gss_callback()
-    {
+
+    void gss_callback() {
+        // TODO: replace the following block with a templated method in BaseClient
         msr::airlib::GSSSimple::Output data;
-        try {
-            std::lock_guard<std::recursive_mutex> lock(this->rpc_mutex);
-            brains_fsds_bridge::Statistics::AutoTimer timer(gss_statistics);
-            data = this->rpc_client->getGroundSpeedSensorData(vehicle_name);
-        } catch (const std::exception& e) {
-            RCLCPP_ERROR(this->get_logger(), "Exception in gss_callback: %s", e.what());
-            return;
-        }
+        rpc_call_wrapper(
+                [this, &data]() {
+                    data = this->rpc_client->getGroundSpeedSensorData(vehicle_name);
+                },
+                "gss_callback",
+                &gss_statistics);
+
         geometry_msgs::msg::TwistWithCovarianceStamped gss_msg;
         gss_msg.header.stamp = this->now();
         gss_msg.twist.twist.angular.x = data.angular_velocity.x();
@@ -308,58 +297,43 @@ private:
 
 public:
     MainNode()
-        : BaseClient("main_node")
-        , car_state_statistics("car_state")
-        , car_controls_statistics("car_controls")
-        , gss_statistics("gss")
-        , wss_statistics("wss")
-    {
+        : BaseClient("main_node"), car_state_statistics("car_state"), car_controls_statistics("car_controls"),
+          gss_statistics("gss"), wss_statistics("wss") {
         // declare parameters
         auto manual_mode = this->declare_parameter<bool>("manual_mode", false);
         this->declare_parameter<double>(velocity_estimation_uncertainty_percentage, 0.1);
         auto car_state_freq = this->declare_parameter<double>("car_state_freq", 100.0);
         auto wss_freq = this->declare_parameter<double>("wss_freq", 100.0);
         auto gss_freq = this->declare_parameter<double>("gss_freq", 100.0);
-        auto imu_freqs = this->declare_parameter<std::vector<double>>("imu_freqs", { 100.0 });
-        auto gps_freqs = this->declare_parameter<std::vector<double>>("gps_freqs", { 10.0 });
+        auto imu_freqs = this->declare_parameter<std::vector<double>>("imu_freqs", {100.0});
+        auto gps_freqs = this->declare_parameter<std::vector<double>>("gps_freqs", {10.0});
         // create what exists by default
         car_state_pub = this->create_publisher<brains_custom_interfaces::msg::CarState>("/fsds/car_state", 10);
-        velocity_estimation_pub = this->create_publisher<brains_custom_interfaces::msg::VelocityEstimation>("/fsds/velocity_estimation", 10);
+        velocity_estimation_pub = this->create_publisher<brains_custom_interfaces::msg::VelocityEstimation>(
+                "/fsds/velocity_estimation", 10);
         car_state_timer = this->create_wall_timer(
-            std::chrono::duration<double>(1.0 / car_state_freq),
-            std::bind(&MainNode::car_state_callback, this));
+                std::chrono::duration<double>(1.0 / car_state_freq),
+                std::bind(&MainNode::car_state_callback, this));
         if (wss_freq > 0.0) {
             wss_pub = this->create_publisher<brains_custom_interfaces::msg::WssData>("/fsds/wss", 10);
             wss_timer = this->create_wall_timer(
-                std::chrono::duration<double>(1.0 / wss_freq),
-                std::bind(&MainNode::wss_callback, this));
+                    std::chrono::duration<double>(1.0 / wss_freq),
+                    std::bind(&MainNode::wss_callback, this));
         }
 
         car_controls_sub = this->create_subscription<brains_custom_interfaces::msg::CarControls>(
-            "/fsds/car_controls", 10, std::bind(&MainNode::car_controls_callback, this, std::placeholders::_1));
+                "/fsds/car_controls", 10, std::bind(&MainNode::car_controls_callback, this, std::placeholders::_1));
         restart_srv = this->create_service<brains_custom_interfaces::srv::RestartFSDS>(
-            "/fsds/restart", std::bind(&MainNode::restart_callback, this, std::placeholders::_1, std::placeholders::_2));
+                "/fsds/restart",
+                std::bind(&MainNode::restart_callback, this, std::placeholders::_1, std::placeholders::_2));
         map_name_srv = this->create_service<brains_custom_interfaces::srv::MapNameFSDS>(
-            "/fsds/map_name", std::bind(&MainNode::map_name_callback, this, std::placeholders::_1, std::placeholders::_2));
+                "/fsds/map_name",
+                std::bind(&MainNode::map_name_callback, this, std::placeholders::_1, std::placeholders::_2));
         enable_api_srv = this->create_service<brains_custom_interfaces::srv::EnableApiFSDS>(
-            "/fsds/enable_api", std::bind(&MainNode::enable_api_callback, this, std::placeholders::_1, std::placeholders::_2));
+                "/fsds/enable_api",
+                std::bind(&MainNode::enable_api_callback, this, std::placeholders::_1, std::placeholders::_2));
 
-        // load settings.json
-        try {
-            std::string settings_text = rpc_client->getSettingsString();
-            msr::airlib::AirSimSettings::initializeSettings(settings_text);
-
-            msr::airlib::AirSimSettings::singleton().load();
-            for (const auto& warning : msr::airlib::AirSimSettings::singleton().warning_messages) {
-                RCLCPP_WARN_STREAM(this->get_logger(), "Configuration warning: " << warning);
-            }
-            for (const auto& error : msr::airlib::AirSimSettings::singleton().error_messages) {
-                RCLCPP_ERROR_STREAM(this->get_logger(), "Configuration error: " << error);
-            }
-        } catch (std::exception& ex) {
-            throw std::invalid_argument(std::string("Failed loading settings.json.") + ex.what());
-        }
-        // parse it to check the numbers of sensors to create
+        // parse the AirSim Settings to check the numbers of sensors to create
         for (const auto& curr_vehicle_elem : msr::airlib::AirSimSettings::singleton().vehicles) {
             vehicle_name = curr_vehicle_elem.first;
             auto& vehicle_setting = curr_vehicle_elem.second;
@@ -369,60 +343,67 @@ public:
                 auto& sensor_setting = sensor.second;
                 if (sensor_setting->enabled) {
                     switch (sensor_setting->sensor_type) {
-                    case msr::airlib::SensorBase::SensorType::Imu: {
-                        try {
+                        case msr::airlib::SensorBase::SensorType::Imu: {
+                            try {
 
-                            imu_pubs[sensor_name] = this->create_publisher<sensor_msgs::msg::Imu>("/fsds/imu/" + sensor_name, 10);
-                            auto imu_timer = this->create_wall_timer(
-                                std::chrono::duration<double>(1.0 / imu_freqs.at(imu_pubs.size() - 1)),
-                                [this, sensor_name]() { this->imu_callback(sensor_name); });
-                            imu_timers[sensor_name] = imu_timer;
-                            imu_statistics[sensor_name] = brains_fsds_bridge::Statistics(sensor_name);
-                        } catch (std::out_of_range& ex) {
-                            RCLCPP_FATAL(this->get_logger(), "There are not enough specified imu_freqs (only %lu) for the number of IMUs in the settings.json file (%lu)", imu_freqs.size(), imu_pubs.size());
-                            throw ex;
-                        }
-                        break;
-                    }
-                    case msr::airlib::SensorBase::SensorType::Gps: {
-                        try {
-
-                            gps_pubs[sensor_name] = this->create_publisher<sensor_msgs::msg::NavSatFix>("/fsds/gps/" + sensor_name, 10);
-                            auto gps_timer = this->create_wall_timer(
-                                std::chrono::duration<double>(1.0 / gps_freqs.at(gps_pubs.size() - 1)),
-                                [this, sensor_name]() { this->gps_callback(sensor_name); });
-                            gps_timers[sensor_name] = gps_timer;
-                            gps_statistics[sensor_name] = brains_fsds_bridge::Statistics(sensor_name);
-                        } catch (std::out_of_range& ex) {
-                            RCLCPP_FATAL(this->get_logger(), "There are not enough specified gps_freqs (only %lu) for the number of GPSs in the settings.json file (%lu)", gps_freqs.size(), gps_pubs.size());
-                            throw ex;
-                        }
-                        break;
-                    }
-                    case msr::airlib::SensorBase::SensorType::GSS: {
-                        if (!this->gss_pub) {
-                            if (gss_freq <= 0.0) {
-                                throw std::invalid_argument("gss_freq must be > 0.0");
+                                imu_pubs[sensor_name] = this->create_publisher<sensor_msgs::msg::Imu>(
+                                        "/fsds/imu/" + sensor_name, 10);
+                                auto imu_timer = this->create_wall_timer(
+                                        std::chrono::duration<double>(1.0 / imu_freqs.at(imu_pubs.size() - 1)),
+                                        [this, sensor_name]() { this->imu_callback(sensor_name); });
+                                imu_timers[sensor_name] = imu_timer;
+                                imu_statistics[sensor_name] = brains_fsds_bridge::Statistics(sensor_name);
+                            } catch (std::out_of_range& ex) {
+                                RCLCPP_FATAL(this->get_logger(),
+                                             "There are not enough specified imu_freqs (only %lu) for the number of IMUs in the settings.json file (%lu)",
+                                             imu_freqs.size(), imu_pubs.size());
+                                throw ex;
                             }
-                            gss_pub = this->create_publisher<geometry_msgs::msg::TwistWithCovarianceStamped>("/fsds/gss", 10);
-                            gss_timer = this->create_wall_timer(
-                                std::chrono::duration<double>(1.0 / gss_freq),
-                                std::bind(&MainNode::gss_callback, this));
+                            break;
                         }
-                        break;
-                    }
-                    default:
-                        break;
+                        case msr::airlib::SensorBase::SensorType::Gps: {
+                            try {
+
+                                gps_pubs[sensor_name] = this->create_publisher<sensor_msgs::msg::NavSatFix>(
+                                        "/fsds/gps/" + sensor_name, 10);
+                                auto gps_timer = this->create_wall_timer(
+                                        std::chrono::duration<double>(1.0 / gps_freqs.at(gps_pubs.size() - 1)),
+                                        [this, sensor_name]() { this->gps_callback(sensor_name); });
+                                gps_timers[sensor_name] = gps_timer;
+                                gps_statistics[sensor_name] = brains_fsds_bridge::Statistics(sensor_name);
+                            } catch (std::out_of_range& ex) {
+                                RCLCPP_FATAL(this->get_logger(),
+                                             "There are not enough specified gps_freqs (only %lu) for the number of GPSs in the settings.json file (%lu)",
+                                             gps_freqs.size(), gps_pubs.size());
+                                throw ex;
+                            }
+                            break;
+                        }
+                        case msr::airlib::SensorBase::SensorType::GSS: {
+                            if (!this->gss_pub) {
+                                if (gss_freq <= 0.0) {
+                                    throw std::invalid_argument("gss_freq must be > 0.0");
+                                }
+                                gss_pub = this->create_publisher<geometry_msgs::msg::TwistWithCovarianceStamped>(
+                                        "/fsds/gss", 10);
+                                gss_timer = this->create_wall_timer(
+                                        std::chrono::duration<double>(1.0 / gss_freq),
+                                        std::bind(&MainNode::gss_callback, this));
+                            }
+                            break;
+                        }
+                        default:
+                            break;
                     }
                 }
             }
         }
     }
+
     ~MainNode() = default;
 };
 
-int main(int argc, char** argv)
-{
+int main(int argc, char** argv) {
     rclcpp::init(argc, argv);
     rclcpp::spin(std::make_shared<MainNode>());
     rclcpp::shutdown();
