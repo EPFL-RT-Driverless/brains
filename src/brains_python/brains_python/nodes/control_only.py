@@ -73,6 +73,7 @@ class ControlOnly(Node):
         )
         self.last_control = control_result.control
         msg = CarControls()
+        msg.header.stamp = self.get_clock().now().to_msg()
         msg.throttle = control_result.control[0]
         msg.steering = control_result.control[1]
         msg.throttle_rate = control_result.control_derivative[0]

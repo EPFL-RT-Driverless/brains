@@ -62,8 +62,7 @@ def generate_launch_description():
             *[
                 launch_ros.actions.Node(
                     package="brains_cpp",
-                    executable="camera_node",
-                    name=camera_name,
+                    executable="fsds_camera_node",
                     output="screen",
                     on_exit=launch.actions.Shutdown(),
                     parameters=[
@@ -95,8 +94,7 @@ def generate_launch_description():
             *[
                 launch_ros.actions.Node(
                     package="brains_cpp",
-                    executable="lidar_node",
-                    name=lidar_name,
+                    executable="fsds_lidar_node",
                     output="screen",
                     on_exit=launch.actions.Shutdown(),
                     parameters=[
@@ -122,7 +120,7 @@ def generate_launch_description():
             ],
             launch_ros.actions.Node(
                 package="brains_cpp",
-                executable="main_node",
+                executable="fsds_main_node",
                 output="screen",
                 on_exit=launch.actions.Shutdown(),
                 parameters=[

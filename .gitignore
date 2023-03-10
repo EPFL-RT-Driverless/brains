@@ -28,3 +28,4 @@ ihm_acados_gen_code
 # forcespro solvers
 ihm_solver*
 *.forces
+state_control_log.csv

@@ -66,20 +66,23 @@ private:
 
     void print_statistics() override {
         std::stringstream dbg_msg;
-        dbg_msg << "--------- brains_fsds_bridge statistics ---------" << std::endl;
-        dbg_msg << car_state_statistics.summary() << std::endl;
-        dbg_msg << car_controls_statistics.summary() << std::endl;
-        dbg_msg << gss_statistics.summary() << std::endl;
+        dbg_msg << "\n-------- brains_fsds_bridge statistics ---------\n";
+        dbg_msg << car_state_statistics.summary();
+        dbg_msg << car_controls_statistics.summary();
+        std::string gss_summary = gss_statistics.summary();
+        if (gss_summary != "") {
+            dbg_msg << gss_summary;
+        }
         if (wss_timer) {
-            dbg_msg << wss_statistics.summary() << std::endl;
+            dbg_msg << wss_statistics.summary();
         }
         for (auto const& s : gps_statistics) {
-            dbg_msg << s.second.summary() << std::endl;
+            dbg_msg << s.second.summary();
         }
         for (auto const& s : imu_statistics) {
-            dbg_msg << s.second.summary() << std::endl;
+            dbg_msg << s.second.summary();
         }
-        dbg_msg << "------------------------------------------" << std::endl;
+        dbg_msg << "------------------------------------------";
         RCLCPP_INFO(this->get_logger(), "%s", dbg_msg.str().c_str());
     }
 
@@ -151,7 +154,9 @@ private:
                 [this, &controls]() {
                     this->rpc_client->setCarControls(controls, vehicle_name);
                 },
-                "car_state_callback");
+                "car_state_callback",
+                &car_controls_statistics);
+        car_controls_statistics.increment_msg_count();
     }
 
     void restart_callback(const brains_custom_interfaces::srv::RestartFSDS::Request::SharedPtr req,

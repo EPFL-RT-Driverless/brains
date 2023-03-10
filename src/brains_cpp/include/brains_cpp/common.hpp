@@ -1,4 +1,4 @@
-// Copyright (c) 2023. Tudor Oancea EPFL Racing Team Driverless
+// // Copyright (c) 2023. Tudor Oancea EPFL Racing Team DriverlessCopyright (c) 2023. Tudor Oancea EPFL Racing Team Driverless
 #ifndef BRAINS_FSDS_BRIDGE_COMMON_HPP
 
 #include "common/AirSimSettings.hpp"

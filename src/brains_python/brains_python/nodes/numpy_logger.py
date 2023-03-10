@@ -18,32 +18,29 @@ class NumpyLogger(Node):
             self, CarState, "/fsds/car_state", qos_profile=10
         )
         self.car_controls_sub = Subscriber(
-            self, CarControls, "/brains/car_controls", qos_profile=10
+            self, CarControls, "/fsds/car_controls", qos_profile=10
         )
-        self.car_control_predictions_pub = self.create_publisher(
-            CarControlsPrediction, "/car_control_predictions", 10
-        )
+        # self.car_control_predictions_pub = self.create_publisher(
+        #     CarControlsPrediction, "/car_control_predictions", 10
+        # )
         self.ats = ApproximateTimeSynchronizer(
             [self.car_state_sub, self.car_controls_sub], queue_size=30, slop=0.02
         )
         self.ats.registerCallback(self.callback)
         # write header to CSV file
         with open(os.path.abspath(self.log_path.value), "w") as f:
-            f.write("timestamp, car_state, car_controls")
+            f.write("timestamp, car_state, car_controls\n")
 
     def callback(self, car_state: CarState, car_controls: CarControls):
-        # open CSV file, write to it in the format of:
-        # timestamp, car_state, car_controls
-        # and close the file
         start_time = self.get_clock().now().nanoseconds
         with open(self.log_path.value, "a") as f:
             f.write(
-                f"{car_state.header.stamp}, {car_state.x}, {car_state.y}, {car_state.phi}, {car_state.v_x}, {car_state.v_y}, {car_state.r}, {car_controls.throttle}, {car_controls.steering}, {car_controls.throttle_rate}, {car_controls.steering_rate}"
+                f"{car_state.header.stamp.sec}.{car_state.header.stamp.nanosec}, {car_state.x}, {car_state.y}, {car_state.phi}, {car_state.v_x}, {car_state.v_y}, {car_state.r}, {car_controls.throttle}, {car_controls.steering}, {car_controls.throttle_rate}, {car_controls.steering_rate}\n"
             )
         end_time = self.get_clock().now().nanoseconds
-        self.get_logger().info(
-            f"Callback took {(end_time - start_time) * 1000000} ms to execute."
-        )
+        # self.get_logger().info(
+        #     f"Callback took {(end_time - start_time) / 1000000} ms to execute."
+        # )
 
 
 def main(args=None):
