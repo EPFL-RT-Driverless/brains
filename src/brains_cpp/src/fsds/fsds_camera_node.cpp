@@ -10,11 +10,11 @@
 #include <string>
 #include <vector>
 
-class CameraNode : public brains_fsds_bridge::BaseClient {
+class CameraNode : public BaseClient {
 private:
     std::shared_ptr<rclcpp::Publisher<sensor_msgs::msg::Image>> image_pub;
     std::shared_ptr<rclcpp::TimerBase> image_timer;
-    brains_fsds_bridge::Statistics image_statistics;
+    Statistics image_statistics;
     void image_callback(std::string camera_name, std::string vehicle_name) {
         std::vector<msr::airlib::ImageCaptureBase::ImageRequest> reqs({msr::airlib::ImageCaptureBase::ImageRequest(camera_name, msr::airlib::ImageCaptureBase::ImageType::Scene, false, false)});
         std::vector<msr::airlib::ImageCaptureBase::ImageResponse> img_responses;
@@ -74,7 +74,7 @@ public:
                 exit(1);
             }
         }
-        image_statistics = brains_fsds_bridge::Statistics("image/" + camera_name);
+        image_statistics = Statistics("image/" + camera_name);
         image_pub = this->create_publisher<sensor_msgs::msg::Image>("/fsds/camera/" + camera_name, 10);
         image_timer = this->create_wall_timer(
                 std::chrono::duration<double>(1.0 / framerate),

@@ -28,9 +28,9 @@
 template <typename T>
 using PublisherMap = std::unordered_map<std::string, std::shared_ptr<rclcpp::Publisher<T>>>;
 using TimerMap = std::unordered_map<std::string, std::shared_ptr<rclcpp::TimerBase>>;
-using StatisticsMap = std::unordered_map<std::string, brains_fsds_bridge::Statistics>;
+using StatisticsMap = std::unordered_map<std::string, Statistics>;
 
-class MainNode : public brains_fsds_bridge::BaseClient {
+class MainNode : public BaseClient {
 private:
     std::string vehicle_name;
     std::random_device rd;
@@ -57,10 +57,10 @@ private:
     std::shared_ptr<rclcpp::Service<brains_custom_interfaces::srv::MapNameFSDS>> map_name_srv;
     std::shared_ptr<rclcpp::Service<brains_custom_interfaces::srv::EnableApiFSDS>> enable_api_srv;
     // statistics
-    brains_fsds_bridge::Statistics car_state_statistics;
-    brains_fsds_bridge::Statistics car_controls_statistics;
-    brains_fsds_bridge::Statistics wss_statistics;
-    brains_fsds_bridge::Statistics gss_statistics;
+    Statistics car_state_statistics;
+    Statistics car_controls_statistics;
+    Statistics gss_statistics;
+    Statistics wss_statistics;
     StatisticsMap imu_statistics;
     StatisticsMap gps_statistics;
 
@@ -169,8 +169,8 @@ private:
         car_controls_statistics.increment_msg_count();
     }
 
-    void restart_callback(const brains_custom_interfaces::srv::RestartFSDS::Request::SharedPtr req,
-                          brains_custom_interfaces::srv::RestartFSDS::Response::SharedPtr res) {
+    void restart_callback([[maybe_unused]] const brains_custom_interfaces::srv::RestartFSDS::Request::SharedPtr req,
+                          [[maybe_unused]] brains_custom_interfaces::srv::RestartFSDS::Response::SharedPtr res) {
         bool previously_enabled = is_api_enabled();
         rpc_call_wrapper(
                 [this]() {
@@ -190,7 +190,7 @@ private:
         RCLCPP_INFO(this->get_logger(), "Restarted FSDS");
     }
 
-    void map_name_callback(const brains_custom_interfaces::srv::MapNameFSDS::Request::SharedPtr req,
+    void map_name_callback([[maybe_unused]] const brains_custom_interfaces::srv::MapNameFSDS::Request::SharedPtr req,
                            brains_custom_interfaces::srv::MapNameFSDS::Response::SharedPtr res) {
         rpc_call_wrapper(
                 [this, res]() {
@@ -200,7 +200,7 @@ private:
     }
 
     void enable_api_callback(const brains_custom_interfaces::srv::EnableApiFSDS::Request::SharedPtr req,
-                             brains_custom_interfaces::srv::EnableApiFSDS::Response::SharedPtr res) {
+                             [[maybe_unused]] brains_custom_interfaces::srv::EnableApiFSDS::Response::SharedPtr res) {
         rpc_call_wrapper(
                 [this, req]() {
                     this->rpc_client->enableApiControl(req->enabled, vehicle_name);
@@ -371,7 +371,7 @@ public:
                                         std::chrono::duration<double>(1.0 / imu_freqs.at(imu_pubs.size() - 1)),
                                         [this, sensor_name]() { this->imu_callback(sensor_name); });
                                 imu_timers[sensor_name] = imu_timer;
-                                imu_statistics[sensor_name] = brains_fsds_bridge::Statistics(sensor_name);
+                                imu_statistics[sensor_name] = Statistics(sensor_name);
                             } catch (std::out_of_range& ex) {
                                 RCLCPP_FATAL(this->get_logger(),
                                              "There are not enough specified imu_freqs (only %lu) for the number of IMUs in the settings.json file (%lu)",
@@ -389,7 +389,7 @@ public:
                                         std::chrono::duration<double>(1.0 / gps_freqs.at(gps_pubs.size() - 1)),
                                         [this, sensor_name]() { this->gps_callback(sensor_name); });
                                 gps_timers[sensor_name] = gps_timer;
-                                gps_statistics[sensor_name] = brains_fsds_bridge::Statistics(sensor_name);
+                                gps_statistics[sensor_name] = Statistics(sensor_name);
                             } catch (std::out_of_range& ex) {
                                 RCLCPP_FATAL(this->get_logger(),
                                              "There are not enough specified gps_freqs (only %lu) for the number of GPSs in the settings.json file (%lu)",

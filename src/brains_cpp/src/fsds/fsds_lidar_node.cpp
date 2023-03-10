@@ -9,11 +9,11 @@
 #include <string>
 #include <vector>
 
-class CameraNode : public brains_fsds_bridge::BaseClient {
+class CameraNode : public BaseClient {
 private:
     std::shared_ptr<rclcpp::Publisher<sensor_msgs::msg::PointCloud2>> lidar_pub;
     std::shared_ptr<rclcpp::TimerBase> lidar_timer;
-    brains_fsds_bridge::Statistics lidar_statistics;
+    Statistics lidar_statistics;
     void lidar_callback(std::string lidar_name, std::string vehicle_name) {
         sensor_msgs::msg::PointCloud2 lidar_msg;
         msr::airlib::LidarData lidar_data;
@@ -100,7 +100,7 @@ public:
             }
         }
 
-        lidar_statistics = brains_fsds_bridge::Statistics("lidar/" + lidar_name);
+        lidar_statistics = Statistics("lidar/" + lidar_name);
         lidar_pub = this->create_publisher<sensor_msgs::msg::PointCloud2>("/fsds/lidar/" + lidar_name, 10);
         lidar_timer = this->create_wall_timer(
                 std::chrono::duration<double>(1.0 / framerate),
