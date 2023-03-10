@@ -1,3 +1,4 @@
+// Copyright (c) 2023. Tudor Oancea EPFL Racing Team Driverless
 #include "brains_custom_interfaces/msg/car_controls.hpp"
 #include "brains_custom_interfaces/msg/car_state.hpp"
 #include "brains_custom_interfaces/msg/velocity_estimation.hpp"

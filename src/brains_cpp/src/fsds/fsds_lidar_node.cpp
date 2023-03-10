@@ -1,3 +1,4 @@
+// Copyright (c) 2023. Tudor Oancea EPFL Racing Team Driverless
 #include "brains_cpp/common.hpp"
 #include "common/AirSimSettings.hpp"
 #include "rclcpp/rclcpp.hpp"
