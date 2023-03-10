@@ -155,6 +155,12 @@ private:
 
     void restart_callback(const brains_custom_interfaces::srv::RestartFSDS::Request::SharedPtr req,
                           brains_custom_interfaces::srv::RestartFSDS::Response::SharedPtr res) {
+        bool is_enabled_api;
+        rpc_call_wrapper(
+                [this, &is_enabled_api]() {
+                    is_enabled_api = this->rpc_client->isApiControlEnabled(vehicle_name);
+                },
+                "is_enabled_api_callback (restart_callback)");
         rpc_call_wrapper(
                 [this]() {
                     this->rpc_client->restart();
@@ -163,6 +169,14 @@ private:
                     this->setup_airsim();
                 },
                 "restart_callback");
+        if (is_enabled_api) {
+            rpc_call_wrapper(
+                    [this]() {
+                        this->rpc_client->enableApiControl(true, vehicle_name);
+                    },
+                    "restart_callback");
+        }
+        RCLCPP_INFO(this->get_logger(), "Restarted FSDS");
     }
 
     void map_name_callback(const brains_custom_interfaces::srv::MapNameFSDS::Request::SharedPtr req,

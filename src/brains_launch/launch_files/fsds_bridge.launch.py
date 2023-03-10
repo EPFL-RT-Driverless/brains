@@ -123,7 +123,6 @@ def generate_launch_description():
             launch_ros.actions.Node(
                 package="brains_cpp",
                 executable="main_node",
-                name="main_node",
                 output="screen",
                 on_exit=launch.actions.Shutdown(),
                 parameters=[

@@ -18,20 +18,18 @@ from brains_custom_interfaces.srv import RestartFSDS, EnableApiFSDS
 class ControlOnly(Node):
     def __init__(self):
         super().__init__("control_only_node")
+        # node parameters
         track_name = self.declare_parameter("track_name", "fsds_competition_2")
 
+        # restart FSDS
         restart_client = self.create_client(RestartFSDS, "/fsds/restart")
-        enable_api_client = self.create_client(EnableApiFSDS, "/fsds/enable_api")
-
         while not restart_client.wait_for_service(timeout_sec=1.0):
             self.get_logger().info("restart service not available, waiting again...")
-        while not enable_api_client.wait_for_service(timeout_sec=1.0):
-            self.get_logger().info("enable API service not available, waiting again...")
-        restart_client.call(RestartFSDS.Request())
+        future = restart_client.call_async(RestartFSDS.Request())
+        rclpy.spin_until_future_complete(self, future)
         self.get_logger().info("Restarted FSDS")
-        enable_api_client.call(EnableApiFSDS.Request(enabled=True))
-        self.get_logger().info("Enabled API")
 
+        # load track
         track = tdb.load_track(track_name.value)
         self.motion_planner_controller = MotionPlannerController(
             car_params=CarParams(**fsds_car_params),
@@ -51,6 +49,7 @@ class ControlOnly(Node):
         )
         self.last_control = np.zeros(2)
 
+        # declare publishers and subscribers
         self.car_state_sub = self.create_subscription(
             CarState, "/fsds/car_state", self.callback, 10
         )
