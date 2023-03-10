@@ -1,7 +1,9 @@
+from email import header
 from track_database import load_track
 import rclpy
 from rclpy.node import Node
 import numpy as np
+from std_msgs.msg import Header
 from brains_custom_interfaces.msg import CarState, ConesObservations
 from brains_custom_interfaces.srv import MapNameFSDS
 
@@ -17,14 +19,18 @@ class ConesObservationGroundTruth(Node):
         self.subscriber = self.create_subscription(
             CarState, "/fsds/car_state", self.callback, 10
         )
-        map_name_srv = self.create_client(MapNameFSDS, "/fsds/get_map_name")
-        map_name = map_name_srv.call(MapNameFSDS.Request()).map_name
-        self.track = load_track(map_name)
+        map_name_srv = self.create_client(MapNameFSDS, "/fsds/map_name")
+        while not map_name_srv.wait_for_service(timeout_sec=1.0):
+            self.get_logger().info("map_name service not available, waiting again...")
+        future = map_name_srv.call_async(MapNameFSDS.Request())
+        rclpy.spin_until_future_complete(self, future)
+        self.track = load_track(future.result().map_name)
         # self._all_cones = np.vstack((track.right_cones, track.left_cones))
 
     def mask_cones(self, cones, x, y, phi):
-        cones_bearing_limits, cones_range_limits = self.get_parameters(
-            ["cones_bearing_limits", "cones_range_limits"]
+        cones_bearing_limits, cones_range_limits = map(
+            lambda x: x.value,
+            self.get_parameters(["cones_bearing_limits", "cones_range_limits"]),
         )
         cartesian = (cones - np.array([x, y])) @ np.array(
             [
@@ -67,18 +73,14 @@ class ConesObservationGroundTruth(Node):
         ]
 
         polar = ConesObservations(
-            rho=np.vstack([tpr[0][:, 0], tpr[1][:, 0], tpr[2][:, 0], tpr[3][:, 0]]),
-            theta=np.vstack([tpr[0][:, 1], tpr[1][:, 1], tpr[2][:, 1], tpr[3][:, 1]]),
-            color=np.vstack(
-                [
-                    np.zeros((tpr[0].shape[0], 1)),
-                    np.ones((tpr[1].shape[0], 1)),
-                    2 * np.ones((tpr[2].shape[0], 1)),
-                    3 * np.ones((tpr[3].shape[0], 1)),
-                ]
-            ),
+            header=Header(stamp=self.get_clock().now().to_msg()),
+            rho=np.concatenate([tpr2[:, 0] for tpr2 in tpr]).tolist(),
+            theta=np.concatenate([tpr2[:, 1] for tpr2 in tpr]).tolist(),
+            colors=[ConesObservations.YELLOW] * tpr[0].shape[0]
+            + [ConesObservations.BLUE] * tpr[1].shape[0]
+            + [ConesObservations.BIG_ORANGE] * tpr[2].shape[0]
+            + [ConesObservations.SMALL_ORANGE] * tpr[3].shape[0],
         )
-
         self.publisher.publish(polar)
 
 

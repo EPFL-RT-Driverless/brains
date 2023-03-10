@@ -23,6 +23,7 @@ setup(
         "console_scripts": [
             "csv_logger = brains_python.nodes.csv_logger:main",
             "control_only = brains_python.nodes.control_only:main",
+            "fsds_cones_observations_ground_truth = brains_python.nodes.fsds_cones_observations_ground_truth:main",
         ],
     },
 )

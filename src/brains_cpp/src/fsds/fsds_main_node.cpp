@@ -195,6 +195,8 @@ private:
         rpc_call_wrapper(
                 [this, res]() {
                     res->map_name = this->rpc_client->getMap();
+                    // remove _cones suffix
+                    res->map_name = res->map_name.substr(0, res->map_name.size() - 6);
                 },
                 "map_name_callback");
     }
