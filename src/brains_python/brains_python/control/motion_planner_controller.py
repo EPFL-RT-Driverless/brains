@@ -39,6 +39,7 @@ class MotionPlannerController:
         stopping_controller_params: ControllerParams,
         motion_planner_params: Optional[MotionPlannerParams] = None,
         autox_start_point: Optional[np.ndarray] = None,
+        max_lap_count: int = 10,
         **kwargs,
     ):
         self.stopping = False
@@ -64,7 +65,7 @@ class MotionPlannerController:
             assert (
                 self.autox_start_point is not None
             ), "start point is not set for AutoX mission"
-        self.max_lap_count = kwargs.get("max_lap_count", 10)
+        self.max_lap_count = max_lap_count
 
     def set_motion_planner(
         self, motion_planner_params: MotionPlannerParams, car_params: CarParams

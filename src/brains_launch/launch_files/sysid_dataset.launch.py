@@ -48,7 +48,7 @@ def generate_launch_description():
             ),
             launch_ros.actions.Node(
                 package="brains_python",
-                executable="numpy_logger",
+                executable="csv_logger",
                 output="screen",
                 on_exit=launch.actions.Shutdown(),
             ),

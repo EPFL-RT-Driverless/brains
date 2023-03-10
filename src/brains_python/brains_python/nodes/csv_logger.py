@@ -7,7 +7,7 @@ from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 
 
-class NumpyLogger(Node):
+class CSVLogger(Node):
     def __init__(self):
         super().__init__("control_only_node")
         self.log_path = self.declare_parameter(
@@ -20,9 +20,6 @@ class NumpyLogger(Node):
         self.car_controls_sub = Subscriber(
             self, CarControls, "/fsds/car_controls", qos_profile=10
         )
-        # self.car_control_predictions_pub = self.create_publisher(
-        #     CarControlsPrediction, "/car_control_predictions", 10
-        # )
         self.ats = ApproximateTimeSynchronizer(
             [self.car_state_sub, self.car_controls_sub], queue_size=30, slop=0.02
         )
@@ -45,7 +42,7 @@ class NumpyLogger(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    control_only_node = NumpyLogger()
+    control_only_node = CSVLogger()
     rclpy.spin(control_only_node)
     control_only_node.destroy_node()
     rclpy.shutdown()

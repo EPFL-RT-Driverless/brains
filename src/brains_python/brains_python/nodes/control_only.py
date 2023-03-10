@@ -20,6 +20,7 @@ class ControlOnly(Node):
         super().__init__("control_only_node")
         # node parameters
         track_name = self.declare_parameter("track_name", "fsds_competition_2")
+        lap_count = self.declare_parameter("lap_count", 10)
 
         # restart FSDS
         restart_client = self.create_client(RestartFSDS, "/fsds/restart")
@@ -46,6 +47,7 @@ class ControlOnly(Node):
                 closed=True,
                 additional_attributes=[],
             ),
+            max_lap_count=lap_count.value,
         )
         self.last_control = np.zeros(2)
 

@@ -21,7 +21,7 @@ setup(
     tests_require=["pytest"],
     entry_points={
         "console_scripts": [
-            "numpy_logger = brains_python.nodes.numpy_logger:main",
+            "csv_logger = brains_python.nodes.csv_logger:main",
             "control_only = brains_python.nodes.control_only:main",
         ],
     },

@@ -46,8 +46,8 @@ private:
     PublisherMap<sensor_msgs::msg::NavSatFix> gps_pubs;
     // timers
     std::shared_ptr<rclcpp::TimerBase> car_state_timer;
-    std::shared_ptr<rclcpp::TimerBase> wss_timer;
     std::shared_ptr<rclcpp::TimerBase> gss_timer;
+    std::shared_ptr<rclcpp::TimerBase> wss_timer;
     TimerMap imu_timers;
     TimerMap gps_timers;
     // subscribers
@@ -99,6 +99,16 @@ private:
             s.second.reset();
         }
         gss_statistics.reset();
+    }
+
+    bool is_api_enabled() {
+        bool is_enabled = false;
+        rpc_call_wrapper(
+                [this, &is_enabled]() {
+                    is_enabled = this->rpc_client->isApiControlEnabled(vehicle_name);
+                },
+                "is_api_enabled");
+        return is_enabled;
     }
 
     void car_state_callback() {
@@ -161,12 +171,7 @@ private:
 
     void restart_callback(const brains_custom_interfaces::srv::RestartFSDS::Request::SharedPtr req,
                           brains_custom_interfaces::srv::RestartFSDS::Response::SharedPtr res) {
-        bool is_enabled_api;
-        rpc_call_wrapper(
-                [this, &is_enabled_api]() {
-                    is_enabled_api = this->rpc_client->isApiControlEnabled(vehicle_name);
-                },
-                "is_enabled_api_callback (restart_callback)");
+        bool previously_enabled = is_api_enabled();
         rpc_call_wrapper(
                 [this]() {
                     this->rpc_client->restart();
@@ -175,7 +180,7 @@ private:
                     this->setup_airsim();
                 },
                 "restart_callback");
-        if (is_enabled_api) {
+        if (previously_enabled) {
             rpc_call_wrapper(
                     [this]() {
                         this->rpc_client->enableApiControl(true, vehicle_name);
@@ -196,7 +201,6 @@ private:
 
     void enable_api_callback(const brains_custom_interfaces::srv::EnableApiFSDS::Request::SharedPtr req,
                              brains_custom_interfaces::srv::EnableApiFSDS::Response::SharedPtr res) {
-        // TODO: replace the following block with a templated method in BaseClient
         rpc_call_wrapper(
                 [this, req]() {
                     this->rpc_client->enableApiControl(req->enabled, vehicle_name);
@@ -205,7 +209,6 @@ private:
     }
 
     void wss_callback() {
-        // TODO: replace the following block with a templated method in BaseClient
         msr::airlib::WheelStates data;
         rpc_call_wrapper(
                 [this, &data]() {
@@ -230,7 +233,6 @@ private:
     }
 
     void imu_callback(std::string imu_name) {
-        // TODO: replace the following block with a templated method in BaseClient
         msr::airlib::ImuBase::Output data;
         rpc_call_wrapper(
                 [this, &data, imu_name]() {
@@ -241,7 +243,6 @@ private:
 
         sensor_msgs::msg::Imu imu_msg;
         imu_msg.header.stamp = this->now();
-        // imu_msg->header.frame_id = "imu_" + sensor_name;  // TODO: add frame_id to airsim
         imu_msg.orientation.x = data.orientation.x();
         imu_msg.orientation.y = data.orientation.y();
         imu_msg.orientation.z = data.orientation.z();
@@ -263,7 +264,6 @@ private:
     }
 
     void gps_callback(std::string gps_name) {
-        // TODO: replace the following block with a templated method in BaseClient
         msr::airlib::GpsBase::Output data;
         rpc_call_wrapper(
                 [this, &data, gps_name]() {
@@ -273,7 +273,6 @@ private:
                 &(gps_statistics[gps_name]));
 
         sensor_msgs::msg::NavSatFix gps_msg;
-        // gps_msg.header.frame_id = "fsds/" + vehicle_name;  // TODO: add frame_id to airsim
         msr::airlib::GeoPoint gps_location = data.gnss.geo_point;
         msr::airlib::GpsBase::GnssReport gnss_gps_report = data.gnss;
         gps_msg.header.stamp = this->now();
@@ -288,7 +287,6 @@ private:
     }
 
     void gss_callback() {
-        // TODO: replace the following block with a templated method in BaseClient
         msr::airlib::GSSSimple::Output data;
         rpc_call_wrapper(
                 [this, &data]() {
@@ -419,15 +417,15 @@ public:
                 }
             }
         }
-        if (!manual_mode) {
-            // start the client
+        bool previously_enabled = is_api_enabled();
+        if (!manual_mode != previously_enabled) {
             auto req = std::make_shared<brains_custom_interfaces::srv::EnableApiFSDS::Request>();
             auto res = std::make_shared<brains_custom_interfaces::srv::EnableApiFSDS::Response>();
-            req->enabled = true;
+            req->enabled = !manual_mode;
             this->enable_api_callback(req, res);
-            RCLCPP_INFO(this->get_logger(), "Enabled API control");
+            RCLCPP_INFO(this->get_logger(), manual_mode ? "Enabled manual control" : "Enabled API control" );
         } else {
-            RCLCPP_INFO(this->get_logger(), "Enables manual control");
+            RCLCPP_INFO(this->get_logger(), "API control is already %s", manual_mode ? "disabled" : "enabled");
         }
     }
 

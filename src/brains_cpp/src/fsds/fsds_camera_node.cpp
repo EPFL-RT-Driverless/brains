@@ -47,9 +47,9 @@ private:
     }
     void print_statistics() override {
         std::stringstream dbg_msg;
-        dbg_msg << "--------- brains_fsds_bridge statistics ---------" << std::endl;
-        dbg_msg << image_statistics.summary() << std::endl;
-        dbg_msg << "------------------------------------------" << std::endl;
+        dbg_msg << "\n--------- brains_fsds_bridge statistics ---------\n";
+        dbg_msg << image_statistics.summary();
+        dbg_msg << "------------------------------------------";
         RCLCPP_INFO(this->get_logger(), "%s", dbg_msg.str().c_str());
     }
     void reset_statistics() override {
