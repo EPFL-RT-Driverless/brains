@@ -38,6 +38,7 @@ set(msg_files
   "msg/CarControlsPrediction.msg"
   "msg/CarState.msg"
   "msg/CenterLineWidths.msg"
+  "msg/ControlPhase.msg"
   "msg/Pose2D.msg"
   "msg/ConesObservations.msg"
   "msg/VelocityEstimation.msg"

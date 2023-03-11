@@ -1,19 +1,20 @@
 import numpy as np
 import rclpy
+import track_database as tdb
 from rclpy.node import Node
-from brains_custom_interfaces.msg import CarState, CarControls
+
+from std_msgs.msg import Header
+from brains_custom_interfaces.msg import CarControls, CarState, ControlPhase
+from brains_custom_interfaces.srv import RestartFSDS
+from brains_python.common import Mission
 from brains_python.control import (
-    MotionPlannerParams,
-    MotionPlannerController,
     CarParams,
+    MotionPlannerController,
+    MotionPlannerParams,
     fsds_car_params,
 )
 from brains_python.control.ihm_acados import IHMAcadosParams, fsds_ihm_acados_params
 from brains_python.control.stanley import StanleyParams, stanley_params_from_mission
-from brains_python.common import Mission
-import track_database as tdb
-from brains_custom_interfaces.srv import RestartFSDS, EnableApiFSDS
-from std_msgs.msg import Empty
 
 
 class ControlOnly(Node):
@@ -64,6 +65,9 @@ class ControlOnly(Node):
         self.car_controls_pub = self.create_publisher(
             CarControls, "/fsds/car_controls", 10
         )
+        self.control_phase_pub = self.create_publisher(
+            ControlPhase, "/brains/control_phase", 10
+        )
 
     def callback(self, car_state: CarState):
         if self.last_control_stamp == 0.0:
@@ -93,14 +97,29 @@ class ControlOnly(Node):
                     ),
                     current_control=self.last_control,
                 )
+                self.control_phase_pub.publish(
+                    ControlPhase(
+                        header=Header(stamp=self.get_clock().now().to_msg()),
+                        phase=ControlPhase.RACING
+                        if not self.motion_planner_controller.stopping
+                        else (
+                            ControlPhase.STOPPING
+                            if np.abs(car_state.v_x) > 0.01
+                            else ControlPhase.STOPPED
+                        ),
+                    )
+                )
+
                 self.last_control = control_result.control
-                msg = CarControls()
-                msg.header.stamp = self.get_clock().now().to_msg()
-                msg.throttle = control_result.control[0]
-                msg.steering = control_result.control[1]
-                msg.throttle_rate = control_result.control_derivative[0]
-                msg.steering_rate = control_result.control_derivative[1]
-                self.car_controls_pub.publish(msg)
+                self.car_controls_pub.publish(
+                    CarControls(
+                        header=Header(stamp=self.get_clock().now().to_msg()),
+                        throttle=control_result.control[0],
+                        steering=control_result.control[1],
+                        throttle_rate=control_result.control_derivative[0],
+                        steering_rate=control_result.control_derivative[1],
+                    )
+                )
 
 
 def main(args=None):
