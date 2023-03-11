@@ -1,4 +1,5 @@
 import os
+from typing import Optional
 
 import rclpy
 from brains_custom_interfaces.msg import CarState, CarControls, CarControlsPrediction
@@ -14,30 +15,66 @@ class CSVLogger(Node):
             "log_path",
             os.environ.get("BRAINS_SOURCE_DIR", "/tmp") + "/state_control_log.csv",
         )
-        self.car_state_sub = Subscriber(
-            self, CarState, "/fsds/car_state", qos_profile=10
+        self.get_logger().info(f"Logging to {os.path.abspath(self.log_path.value)}")
+
+        self.state_sub = self.create_subscription(
+            CarState,
+            "/fsds/car_state",
+            self.state_callback,
+            qos_profile=qos_profile_sensor_data,
         )
-        self.car_controls_sub = Subscriber(
-            self, CarControls, "/fsds/car_controls", qos_profile=10
+        self.controls_sub = self.create_subscription(
+            CarControls,
+            "/fsds/car_controls",
+            self.controls_callback,
+            qos_profile=qos_profile_sensor_data,
         )
-        self.ats = ApproximateTimeSynchronizer(
-            [self.car_state_sub, self.car_controls_sub], queue_size=30, slop=0.02
-        )
-        self.ats.registerCallback(self.callback)
+
         # write header to CSV file
         with open(os.path.abspath(self.log_path.value), "w") as f:
-            f.write("timestamp, car_state, car_controls\n")
+            f.write("timestamp,X,Y,phi,v_x,v_y,r,T,delta,dT,ddelta\n")
 
-    def callback(self, car_state: CarState, car_controls: CarControls):
+    @staticmethod
+    def msgs_to_str(car_state: Optional[CarState], car_controls: Optional[CarControls]):
+        assert car_state is not None or car_controls is not None
+        if car_state is None:
+            car_state_str = ",,,,,"
+        else:
+            car_state_str = f"{car_state.x:.5f}, {car_state.y:.5f}, {car_state.phi:.5f}, {car_state.v_x:.5f}, {car_state.v_y:.5f}, {car_state.r:.5f}"
+        if car_controls is None:
+            car_controls_str = ",,,"
+        else:
+            car_controls_str = f"{car_controls.throttle:.5f}, {car_controls.steering:.5f}, {car_controls.throttle_rate:.5f}, {car_controls.steering_rate:.5f}"
+        return (
+            (
+                f"{car_state.header.stamp.sec}.{car_state.header.stamp.nanosec//1000000}"
+                if car_state is not None
+                else f"{car_controls.header.stamp.sec}.{car_controls.header.stamp.nanosec//1000000}"
+            )
+            + ", "
+            + car_state_str
+            + ", "
+            + car_controls_str
+            + "\n"
+        )
+
+    def state_callback(self, car_state: CarState):
         start_time = self.get_clock().now().nanoseconds
         with open(self.log_path.value, "a") as f:
-            f.write(
-                f"{car_state.header.stamp.sec}.{car_state.header.stamp.nanosec}, {car_state.x}, {car_state.y}, {car_state.phi}, {car_state.v_x}, {car_state.v_y}, {car_state.r}, {car_controls.throttle}, {car_controls.steering}, {car_controls.throttle_rate}, {car_controls.steering_rate}\n"
-            )
+            f.write(CSVLogger.msgs_to_str(car_state, None))
         end_time = self.get_clock().now().nanoseconds
-        # self.get_logger().info(
-        #     f"Callback took {(end_time - start_time) / 1000000} ms to execute."
-        # )
+        self.get_logger().info(
+            f"state callback took {(end_time - start_time) / 1000000} ms to execute."
+        )
+
+    def controls_callback(self, car_controls: CarControls):
+        start_time = self.get_clock().now().nanoseconds
+        with open(self.log_path.value, "a") as f:
+            f.write(CSVLogger.msgs_to_str(None, car_controls))
+        end_time = self.get_clock().now().nanoseconds
+        self.get_logger().info(
+            f"control callback took {(end_time - start_time) / 1000000} ms to execute."
+        )
 
 
 def main(args=None):

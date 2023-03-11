@@ -29,7 +29,7 @@ def generate_launch_description():
                         )
                     },
                     {"manual_mode": False},
-                    {"car_state_freq": 20.0},
+                    {"car_state_freq": 100.0},
                     {"wss_freq": 0.0},
                 ],
             ),

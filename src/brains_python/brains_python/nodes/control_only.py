@@ -13,6 +13,7 @@ from brains_python.control.stanley import StanleyParams, stanley_params_from_mis
 from brains_python.common import Mission
 import track_database as tdb
 from brains_custom_interfaces.srv import RestartFSDS, EnableApiFSDS
+from std_msgs.msg import Empty
 
 
 class ControlOnly(Node):
@@ -21,6 +22,8 @@ class ControlOnly(Node):
         # node parameters
         track_name = self.declare_parameter("track_name", "fsds_competition_2")
         lap_count = self.declare_parameter("lap_count", 10)
+        freq = self.declare_parameter("freq", 20.0)
+        self.dt = 1 / freq.value
 
         # restart FSDS
         restart_client = self.create_client(RestartFSDS, "/fsds/restart")
@@ -32,8 +35,10 @@ class ControlOnly(Node):
 
         # load track
         track = tdb.load_track(track_name.value)
+        car_params = CarParams(**fsds_car_params)
+        car_params.W = 1.5
         self.motion_planner_controller = MotionPlannerController(
-            car_params=CarParams(**fsds_car_params),
+            car_params=car_params,
             racing_controller_params=IHMAcadosParams(**fsds_ihm_acados_params),
             stopping_controller_params=StanleyParams(
                 **stanley_params_from_mission(Mission.TRACKDRIVE)
@@ -50,6 +55,7 @@ class ControlOnly(Node):
             max_lap_count=lap_count.value,
         )
         self.last_control = np.zeros(2)
+        self.last_control_stamp = 0.0
 
         # declare publishers and subscribers
         self.car_state_sub = self.create_subscription(
@@ -60,27 +66,41 @@ class ControlOnly(Node):
         )
 
     def callback(self, car_state: CarState):
-        control_result = self.motion_planner_controller.compute_control(
-            current_state=np.array(
-                [
-                    car_state.x,
-                    car_state.y,
-                    car_state.phi,
-                    car_state.v_x,
-                    car_state.v_y,
-                    car_state.r,
-                ]
-            ),
-            current_control=self.last_control,
-        )
-        self.last_control = control_result.control
-        msg = CarControls()
-        msg.header.stamp = self.get_clock().now().to_msg()
-        msg.throttle = control_result.control[0]
-        msg.steering = control_result.control[1]
-        msg.throttle_rate = control_result.control_derivative[0]
-        msg.steering_rate = control_result.control_derivative[1]
-        self.car_controls_pub.publish(msg)
+        if self.last_control_stamp == 0.0:
+            self.last_control_stamp = (
+                car_state.header.stamp.sec + car_state.header.stamp.nanosec * 1e-9
+            )
+        else:
+            dt = (
+                car_state.header.stamp.sec
+                + car_state.header.stamp.nanosec * 1e-9
+                - self.last_control_stamp
+            )
+            if dt >= self.dt * 0.9:
+                self.last_control_stamp = (
+                    car_state.header.stamp.sec + car_state.header.stamp.nanosec * 1e-9
+                )
+                control_result = self.motion_planner_controller.compute_control(
+                    current_state=np.array(
+                        [
+                            car_state.x,
+                            car_state.y,
+                            car_state.phi,
+                            car_state.v_x,
+                            car_state.v_y,
+                            car_state.r,
+                        ]
+                    ),
+                    current_control=self.last_control,
+                )
+                self.last_control = control_result.control
+                msg = CarControls()
+                msg.header.stamp = self.get_clock().now().to_msg()
+                msg.throttle = control_result.control[0]
+                msg.steering = control_result.control[1]
+                msg.throttle_rate = control_result.control_derivative[0]
+                msg.steering_rate = control_result.control_derivative[1]
+                self.car_controls_pub.publish(msg)
 
 
 def main(args=None):

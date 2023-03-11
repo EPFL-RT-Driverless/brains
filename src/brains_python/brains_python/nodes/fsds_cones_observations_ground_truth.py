@@ -25,7 +25,6 @@ class ConesObservationGroundTruth(Node):
         future = map_name_srv.call_async(MapNameFSDS.Request())
         rclpy.spin_until_future_complete(self, future)
         self.track = load_track(future.result().map_name)
-        # self._all_cones = np.vstack((track.right_cones, track.left_cones))
 
     def mask_cones(self, cones, x, y, phi):
         cones_bearing_limits, cones_range_limits = map(
