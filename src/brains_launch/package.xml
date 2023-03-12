@@ -8,6 +8,8 @@
   <maintainer email="oancea.tudor@icloud.com">Tudor Oancea</maintainer>
   <license>MIT</license>
 
+  <depend>brains_custom_interfaces</depend>
+
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
   <test_depend>ament_pep257</test_depend>

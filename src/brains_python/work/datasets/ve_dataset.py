@@ -46,29 +46,21 @@ def bruh(mission: Mission, track_name: str, v_x_max: float, csv: bool = False):
         delay=0.0,
         verbosity_level=127,
     )
-    imu_linear_accelerations = []
-    imu_angular_velocities = []
+    imu_data = []
     wheel_speeds = []
-    gss_velocities = []
+    gss_data = []
 
     def callback(s: ClosedLoopRun):
-        imu_data = s.fsds_client.low_level_client.getImuData()
-        imu_linear_accelerations.append(imu_data.linear_acceleration.to_numpy_array())
-        imu_angular_velocities.append(imu_data.angular_velocity.to_numpy_array())
-        wss_data = s.fsds_client.low_level_client.simGetWheelStates()
-        wheel_speeds.append(
-            [wss_data.fl_rpm, wss_data.fr_rpm, wss_data.rl_rpm, wss_data.rr_rpm]
-        )
-        gss_data = s.fsds_client.low_level_client.getGroundSpeedSensorData()
-        gss_velocities.append(gss_data.linear_velocity.to_numpy_array())
+        imu_data.append(s.fsds_client.get_imu_data("imu")[0])
+        wheel_speeds.append(s.fsds_client.get_wheel_speeds("wss")[0])
+        gss_data.append(s.fsds_client.get_gss_data("gss")[0])
 
     instance.submit_callback(callback)
     instance.run()
 
-    imu_linear_accelerations = np.array(imu_linear_accelerations)
-    imu_angular_velocities = np.array(imu_angular_velocities)
+    imu_data = np.array(imu_data)
     wheel_speeds = np.array(wheel_speeds)
-    gss_velocities = np.array(gss_velocities)
+    gss_data = np.array(gss_data)
     if csv:
         # noinspection PyTypeChecker
         np.savetxt(
@@ -79,9 +71,8 @@ def bruh(mission: Mission, track_name: str, v_x_max: float, csv: bool = False):
                     + np.random.multivariate_normal(
                         np.zeros(2), np.diag([1.0, 0.1]) ** 2, instance.states.shape[0]
                     ),
-                    imu_angular_velocities[:, 2],
-                    imu_linear_accelerations[:, 2],
-                    gss_velocities[:, 2],
+                    imu_data,
+                    gss_data,
                     wheel_speeds,
                     np.tile(
                         np.array([0.2, 0.2, 0.3, 0.3]), (instance.states.shape[0], 1)

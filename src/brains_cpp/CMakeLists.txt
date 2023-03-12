@@ -1,48 +1,64 @@
 # Copyright (c) 2023. Tudor Oancea EPFL Racing Team Driverless
 cmake_minimum_required(VERSION 3.8)
-project(brains_cpp VERSION 0.4.1)
+project(brains_cpp)
 
-if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  add_compile_options(-Wall -Wextra -Wpedantic)
-endif()
+set(CMAKE_CXX_STANDARD 17)
+if (CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+	add_compile_options(-Wall -Wextra -Wpedantic -std=c++17 -pthread -Wno-deprecated -Wno-deprecated-declarations)
+	# maybe replace that by set(CMAKE_CXX_FLAGS ...)
+endif ()
 
-# find dependencies
-find_package(ament_cmake REQUIRED)
-find_package(rclcpp REQUIRED)
-find_package(action_msgs REQUIRED)
-find_package(actionlib_msgs REQUIRED)
-find_package(diagnostic_msgs REQUIRED)
-find_package(geometry_msgs REQUIRED)
-find_package(lifecycle_msgs REQUIRED)
-find_package(map_msgs REQUIRED)
-find_package(nav_msgs REQUIRED)
-find_package(pcl_msgs REQUIRED)
-find_package(pendulum_msgs REQUIRED)
-find_package(rosgraph_msgs REQUIRED)
-find_package(sensor_msgs REQUIRED)
-find_package(shape_msgs REQUIRED)
-find_package(statistics_msgs REQUIRED)
-find_package(std_msgs REQUIRED)
-find_package(stereo_msgs REQUIRED)
-find_package(tf2_geometry_msgs REQUIRED)
-find_package(tf2_msgs REQUIRED)
-find_package(tf2_sensor_msgs REQUIRED)
-find_package(trajectory_msgs REQUIRED)
-find_package(unique_identifier_msgs REQUIRED)
-find_package(visualization_msgs REQUIRED)
+# find AirSim source code
+set(AIRSIM_ROOT $ENV{HOME}/Formula-Student-Driverless-Simulator/AirSim)
+add_subdirectory("${AIRSIM_ROOT}/cmake/rpclib_wrapper" rpclib_wrapper)
+add_subdirectory("${AIRSIM_ROOT}/cmake/AirLib" AirLib)
 
-if(BUILD_TESTING)
-  find_package(ament_lint_auto REQUIRED)
+# find rpclib
+set(RPC_LIB_INCLUDES " ${AIRSIM_ROOT}/external/rpclib/include")
+set(RPC_LIB rpc) # name of .a file with lib prefix
+message(STATUS "found RPC_LIB_INCLUDES=${RPC_LIB_INCLUDES}")
 
-  # the following line skips the linter which checks for copyrights
-  # comment the line when a copyright and license is added to all source files
-  set(ament_cmake_copyright_FOUND TRUE)
+# find ament
+find_package(ament_cmake_auto REQUIRED)
+ament_auto_find_build_dependencies()
 
-  # the following line skips cpplint (only works in a git repo)
-  # comment the line when this package is in a git repo and when
-  # a copyright and license is added to all source files
-  set(ament_cmake_cpplint_FOUND TRUE)
-  ament_lint_auto_find_test_dependencies()
-endif()
+# find OpenCV
+find_package(OpenCV REQUIRED)
 
-ament_package()
+# other dependencies
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(libcurl REQUIRED libcurl)
+
+# include directories
+include_directories(
+		SYSTEM
+		${OpenCV_INCLUDE_DIRS}
+		${AIRSIM_ROOT}/AirLib/deps/eigen3
+		${AIRSIM_ROOT}/AirLib/include
+		${RPC_LIB_INCLUDES}
+)
+
+include_directories(
+		include
+)
+
+# package libs and executables =================================================
+ament_auto_add_executable(fsds_main_node
+						  src/fsds/fsds_main_node.cpp
+						  include/brains_cpp/common.hpp
+						  )
+target_link_libraries(fsds_main_node AirLib ${OpenCV_LIBS} ${libcurl_LIBRARIES} ${CXX_EXP_LIB})
+
+ament_auto_add_executable(fsds_camera_node
+						  src/fsds/fsds_camera_node.cpp
+						  include/brains_cpp/common.hpp
+						  )
+target_link_libraries(fsds_camera_node AirLib ${OpenCV_LIBS} ${libcurl_LIBRARIES} ${CXX_EXP_LIB})
+
+ament_auto_add_executable(fsds_lidar_node
+						  src/fsds/fsds_lidar_node.cpp
+						  include/brains_cpp/common.hpp
+						  )
+target_link_libraries(fsds_lidar_node AirLib ${OpenCV_LIBS} ${libcurl_LIBRARIES} ${CXX_EXP_LIB})
+
+ament_auto_package(INSTALL_TO_SHARE)

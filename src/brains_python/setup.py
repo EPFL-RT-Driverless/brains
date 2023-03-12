@@ -5,7 +5,6 @@ package_name = "brains_python"
 
 setup(
     name=package_name,
-    version="0.4.1",
     packages=[package_name],
     data_files=[
         ("share/ament_index/resource_index/packages", ["resource/" + package_name]),
@@ -22,13 +21,9 @@ setup(
     tests_require=["pytest"],
     entry_points={
         "console_scripts": [
-            "fsds_velocity_estimation = brains_python.nodes.fsds_velocity_estimation:main",
-            "fsds_car_controller = brains_python.nodes.fsds_car_controller:main",
-            "ekf_slam = brains_python.nodes.ekf_slam:main",
-            "control_known_track = brains_python.nodes.control_known_track:main",
-            "point_cloud_file = brains_python.nodes.point_cloud_file:main",
-            "video_file_and_yolo = brains_python.nodes.video_file_and_yolo:main",
-            "vision_fusion = brains_python.nodes.vision_fusion:main",
+            "csv_logger = brains_python.nodes.csv_logger:main",
+            "control_only = brains_python.nodes.control_only:main",
+            "fsds_cones_observations_ground_truth = brains_python.nodes.fsds_cones_observations_ground_truth:main",
         ],
     },
 )

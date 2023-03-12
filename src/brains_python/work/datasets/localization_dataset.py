@@ -48,33 +48,16 @@ def bruh(mission: Mission, track_name: str, v_x_max: float):
         delay=0.0,
         verbosity_level=0,
     )
-    imu_orientations = []
     rel_cones_positions = []
 
     def callback(s: ClosedLoopRun):
         start = perf_counter()
-        imu_data = s.fsds_client.low_level_client.getImuData()
-        imu_orientations.append(imu_data.orientation.to_numpy_array())
-        rel_cones_positions.append(instance.fsds_client.find_cones(s.states[-1]))
+        rel_cones_positions.append(instance.fsds_client.get_cones_observations()[0])
         print("imu fetch: ", 1000 * (perf_counter() - start), " ms")
 
     instance.submit_callback(callback)
     instance.run()
 
-    imu_orientations = np.array(imu_orientations)
-    imu_orientations = (
-        np.mod(
-            to_eulerian_angles_vectorized(
-                imu_orientations[3],
-                imu_orientations[0],
-                imu_orientations[1],
-                imu_orientations[2],
-            )[2]
-            + np.pi,
-            2 * np.pi,
-        )
-        - np.pi
-    )
     rel_cones_positions = {
         "rel_cones_positions_" + str(i): rel_cones_positions[i]
         for i in range(len(rel_cones_positions))
@@ -85,7 +68,6 @@ def bruh(mission: Mission, track_name: str, v_x_max: float):
         states=instance.states,
         controls=instance.controls,
         control_derivatives=instance.control_derivatives,
-        imu_orientations=imu_orientations,
         **rel_cones_positions,
     )
 

@@ -1,0 +1,78 @@
+{
+    "SeeDocsAt": "https://FS-Driverless.github.io/Formula-Student-Driverless-Simulator/",
+    "SettingsVersion": 1.2,
+    "ClockSpeed": 1.0,
+    "ViewMode": "SpringArmChase",
+    "PawnPaths": {
+      "DefaultCar": {
+        "PawnBP": "Class'/AirSim/VehicleAdv/Cars/TechnionCar/TechnionCarPawn.TechnionCarPawn_C'"
+      }
+    },
+    "Vehicles": {
+      "FSCar": {
+        "DefaultVehicleState": "",
+        "EnableCollisionPassthrogh": false,
+        "EnableCollisions": true,
+        "AllowAPIAlways": true,
+        "RC": {
+          "RemoteControlID": -1
+        },
+        "Sensors": {
+          "imu": {
+            "SensorType": 2,
+            "Enabled": false
+          },
+          "gss": {
+            "SensorType": 7,
+            "Enabled": false
+          },
+          "gps": {
+            "SensorType": 3,
+            "Enabled": false
+          },
+          "lidar1": {
+            "SensorType": 6,
+            "Enabled": true,
+            "X": 0.0,
+            "Y": -0.0535,
+            "Z": 1.05,
+            "Roll": 0,
+            "Pitch": 0,
+            "Yaw": 0,
+            "NumberOfLasers": 32,
+            "PointsPerScan": 16000,
+            "VerticalFOVUpper": 15,
+            "VerticalFOVLower": -16,
+            "HorizontalFOVStart": -90,
+            "HorizontalFOVEnd": 90,
+            "RotationsPerSecond": 20,
+            "DrawDebugPoints": false
+          }
+        },
+        "Cameras": {
+          "camera1": {
+            "CaptureSettings": [
+              {
+                "ImageType": 0,
+                "Width": 1024,
+                "Height": 544,
+                "FOV_Degrees": 96
+              }
+            ],
+            "X": 0.0,
+            "Y": 0.0535,
+            "Z": 1.05,
+            "Pitch": 0,
+            "Roll": 0,
+            "Yaw": 0
+          }
+        },
+        "X": 0,
+        "Y": 0,
+        "Z": 0,
+        "Pitch": 0,
+        "Roll": 0,
+        "Yaw": -90
+      }
+    }
+}

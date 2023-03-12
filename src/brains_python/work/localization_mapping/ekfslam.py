@@ -3,6 +3,7 @@ from time import perf_counter
 
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.patches import Ellipse, Rectangle
 from tqdm import tqdm
 
 import track_database as tdb
@@ -22,9 +23,11 @@ def run():
     track_name = "fsds_competition_1"
     vxmax = 10.0
     filename = f"{track_name}_{vxmax}.npz"
-    mode = EKFSLAMMode.MAPPING
+    mode = EKFSLAMMode.LOCALIZATION
     live_plot = False
     pause_time = 0.1
+    dead_reckoning_only = False
+    odometry_err_percentage = 4 / 100
 
     # load track and data =======================================================
     track = tdb.load_track(track_name)
@@ -66,11 +69,23 @@ def run():
         # odometry update
         true_state = data["states"][file_id]
         Q1 = (
-            np.array([0.04 * true_state[3], 0.04 * true_state[4], 0.04 * true_state[5]])
+            np.array(
+                [
+                    odometry_err_percentage * true_state[3],
+                    odometry_err_percentage * true_state[4],
+                    odometry_err_percentage * true_state[5],
+                ]
+            )
             ** 2
         )
         Q2 = (
-            np.array([0.04 * true_state[3], 0.04 * true_state[4], 0.04 * true_state[5]])
+            np.array(
+                [
+                    odometry_err_percentage * true_state[3],
+                    odometry_err_percentage * true_state[4],
+                    odometry_err_percentage * true_state[5],
+                ]
+            )
             * 2
         ) ** 2
         odometry_measurement = true_state[-3:] + np.random.multivariate_normal(
@@ -87,7 +102,10 @@ def run():
 
         # yaw update
         start = perf_counter()
-        slamer.yaw_update(yaw=true_state[2], yaw_uncertainty=1e-3)
+        slamer.yaw_update(
+            yaw=true_state[2] + 2e-2 * np.random.randn(1),
+            yaw_uncertainty=1e-3,
+        )
         stop = perf_counter()
         yaw_update_runtimes.append(1000 * (stop - start))
 
@@ -110,15 +128,17 @@ def run():
                 ]
             ).T
             start = perf_counter()
-            slamer.cones_update(
-                observations=observations,
-                observations_uncertainties=R2,
-            )
+            if not dead_reckoning_only:
+                slamer.cones_update(
+                    observations=observations,
+                    observations_uncertainties=R2,
+                )
             stop = perf_counter()
             cones_update_runtimes.append(1000 * (stop - start))
-            data_association_statistics = np.vstack(
-                (data_association_statistics, slamer.data_association_statistics)
-            )
+            if not dead_reckoning_only:
+                data_association_statistics = np.vstack(
+                    (data_association_statistics, slamer.data_association_statistics)
+                )
             if live_plot:
                 # plot stuff
                 plt.clf()
@@ -189,6 +209,7 @@ def run():
     if not live_plot:
         track = tdb.load_track(track_name)
         fig = plt.figure(figsize=(10, 10))
+        ax = fig.add_subplot(111)
         plot_cones(
             track.blue_cones,
             track.yellow_cones,
@@ -200,8 +221,37 @@ def run():
         plt.tight_layout()
         plt.plot(true_poses[:, 0], true_poses[:, 1], "g-", label="True trajectory")
         plt.plot(poses[:, 0], poses[:, 1], "b-", label="Estimated trajectory")
-        plt.scatter(slamer.map[:, 0], slamer.map[:, 1], c="r", label="Map")
+        plt.scatter(slamer.map[:, 0], slamer.map[:, 1], s=10, c="r", label="Map")
+
+        # plot landmarks covariance ellipses
+        for i in range(slamer.map.shape[0]):
+            x, y = slamer.map[i, :]
+            cov = slamer.Sigma[3 + 2 * i : 3 + 2 * i + 2, 3 + 2 * i : 3 + 2 * i + 2]
+            lam, v = np.linalg.eig(cov)
+            lam = np.sqrt(lam)
+            angle = np.rad2deg(np.arctan2(v[1, 0], v[0, 0]))
+            angle = np.rad2deg(np.arccos(v[0, 0]))
+            print(
+                "x: {}, y: {}, lam: {}, angle : {}, cov : {}".format(
+                    x, y, lam, angle, cov
+                )
+            )
+            ell = Ellipse(
+                xy=(x, y),
+                width=2 * 5e2 * lam[0],
+                height=2 * 5e2 * lam[1],
+                angle=angle,
+            )
+            ell.set_facecolor("none")
+            ell.set_edgecolor("r")
+            if i == 0:
+                ell.set_label(r"Landmark covariance ($\times 500$)")
+
+            ax.add_patch(ell)
+
         plt.legend()
+        plt.xlim(-70, -30)
+        plt.ylim(-30, 30)
         plt.savefig("ekfslam.png", dpi=300)
         plt.show()
 
