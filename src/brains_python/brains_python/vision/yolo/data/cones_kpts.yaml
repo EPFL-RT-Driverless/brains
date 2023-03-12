@@ -1,0 +1,8 @@
+train: data/images/train
+val: data/images/val
+test: data/images/test
+
+# Classes
+nc: 4  # number of classes
+nkpt: 7 # number of keypoints per prediction
+names: ['blue_cone', 'yellow_cone', 'orange_cone', 'large_orange_cone']

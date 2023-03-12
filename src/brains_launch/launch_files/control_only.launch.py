@@ -15,6 +15,7 @@ def generate_launch_description():
             launch.actions.DeclareLaunchArgument(
                 name="track_name", default_value="fsds_competition_2"
             ),
+            launch.actions.DeclareLaunchArgument(name="lap_count", default_value="10"),
             launch_ros.actions.Node(
                 package="brains_cpp",
                 executable="fsds_main_node",
@@ -43,7 +44,12 @@ def generate_launch_description():
                         "track_name": launch.substitutions.LaunchConfiguration(
                             "track_name"
                         )
-                    }
+                    },
+                    {
+                        "lap_count": launch.substitutions.LaunchConfiguration(
+                            "lap_count"
+                        )
+                    },
                 ],
             ),
         ]

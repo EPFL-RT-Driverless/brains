@@ -175,7 +175,6 @@ private:
         rpc_call_wrapper(
                 [this]() {
                     this->rpc_client->restart();
-                    // sleep for 1 second (this->timeout)
                     rclcpp::sleep_for(std::chrono::seconds(1));
                     this->setup_airsim();
                 },

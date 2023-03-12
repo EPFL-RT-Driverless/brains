@@ -30,7 +30,7 @@
             "SensorType": 3,
             "Enabled": false
           },
-          "lidar": {
+          "lidar1": {
             "SensorType": 6,
             "Enabled": true,
             "X": 0.0,
@@ -50,7 +50,7 @@
           }
         },
         "Cameras": {
-          "camera": {
+          "camera1": {
             "CaptureSettings": [
               {
                 "ImageType": 0,
