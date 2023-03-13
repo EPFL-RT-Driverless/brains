@@ -15,6 +15,13 @@ def generate_launch_description():
             launch.actions.DeclareLaunchArgument(
                 name="track_name", default_value="fsds_competition_2"
             ),
+            launch.actions.DeclareLaunchArgument(name="lap_count", default_value="10"),
+            launch.actions.DeclareLaunchArgument(name="v_x_max", default_value="10.0"),
+            launch.actions.DeclareLaunchArgument(name="a_y_max", default_value="7.0"),
+            launch.actions.DeclareLaunchArgument(name="W", default_value="1.5"),
+            launch.actions.DeclareLaunchArgument(
+                name="log_path", default_value="state_control_log.csv"
+            ),
             launch_ros.actions.Node(
                 package="brains_cpp",
                 executable="fsds_main_node",
@@ -43,7 +50,13 @@ def generate_launch_description():
                         "track_name": launch.substitutions.LaunchConfiguration(
                             "track_name"
                         )
-                    }
+                    },
+                    {
+                        "lap_count": launch.substitutions.LaunchConfiguration(
+                            "lap_count"
+                        )
+                    },
+                    {"v_x_max": launch.substitutions.LaunchConfiguration("v_x_max")},
                 ],
             ),
             launch_ros.actions.Node(
@@ -51,6 +64,9 @@ def generate_launch_description():
                 executable="csv_logger",
                 output="screen",
                 on_exit=launch.actions.Shutdown(),
+                parameters=[
+                    {"log_path": launch.substitutions.LaunchConfiguration("log_path")},
+                ],
             ),
         ]
     )

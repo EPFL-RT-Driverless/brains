@@ -25,6 +25,9 @@ class ControlOnly(Node):
         lap_count = self.declare_parameter("lap_count", 10)
         freq = self.declare_parameter("freq", 20.0)
         self.dt = 1 / freq.value
+        v_x_max = self.declare_parameter("v_x_max", 10.0)
+        a_y_max = self.declare_parameter("a_y_max", 7.0)
+        W = self.declare_parameter("W", 1.5)
 
         # restart FSDS
         restart_client = self.create_client(RestartFSDS, "/fsds/restart")
@@ -37,7 +40,9 @@ class ControlOnly(Node):
         # load track
         track = tdb.load_track(track_name.value)
         car_params = CarParams(**fsds_car_params)
-        car_params.W = 1.5
+        car_params.W = W.value
+        car_params.v_x_max = v_x_max.value
+        car_params.a_y_max = a_y_max.value
         self.motion_planner_controller = MotionPlannerController(
             car_params=car_params,
             racing_controller_params=IHMAcadosParams(**fsds_ihm_acados_params),
