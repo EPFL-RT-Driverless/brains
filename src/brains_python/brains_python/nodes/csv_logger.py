@@ -1,5 +1,6 @@
 import os
 from typing import Optional
+import numpy as np
 
 import rclpy
 from brains_custom_interfaces.msg import CarState, CarControls, CarControlsPrediction
@@ -29,6 +30,7 @@ class CSVLogger(Node):
             self.controls_callback,
             qos_profile=qos_profile_sensor_data,
         )
+        self.last_controls = CarControls()
 
         # write header to CSV file
         with open(os.path.abspath(self.log_path.value), "w") as f:
@@ -47,9 +49,9 @@ class CSVLogger(Node):
             car_controls_str = f"{car_controls.throttle:.5f}, {car_controls.steering:.5f}, {car_controls.throttle_rate:.5f}, {car_controls.steering_rate:.5f}"
         return (
             (
-                f"{car_state.header.stamp.sec}.{car_state.header.stamp.nanosec//1000000}"
+                f"{car_state.header.stamp.sec + car_state.header.stamp.nanosec/1e9:.3f}"
                 if car_state is not None
-                else f"{car_controls.header.stamp.sec}.{car_controls.header.stamp.nanosec//1000000}"
+                else f"{car_controls.header.stamp.sec + car_controls.header.stamp.nanosec/1e9:.3f}"
             )
             + ", "
             + car_state_str
@@ -59,22 +61,11 @@ class CSVLogger(Node):
         )
 
     def state_callback(self, car_state: CarState):
-        # start_time = self.get_clock().now().nanoseconds
         with open(self.log_path.value, "a") as f:
-            f.write(CSVLogger.msgs_to_str(car_state, None))
-        # end_time = self.get_clock().now().nanoseconds
-        # self.get_logger().info(
-        #     f"state callback took {(end_time - start_time) / 1000000} ms to execute."
-        # )
+            f.write(CSVLogger.msgs_to_str(car_state, self.last_controls))
 
     def controls_callback(self, car_controls: CarControls):
-        # start_time = self.get_clock().now().nanoseconds
-        with open(self.log_path.value, "a") as f:
-            f.write(CSVLogger.msgs_to_str(None, car_controls))
-        # end_time = self.get_clock().now().nanoseconds
-        # self.get_logger().info(
-        #     f"control callback took {(end_time - start_time) / 1000000} ms to execute."
-        # )
+        self.last_controls = car_controls
 
 
 def main(args=None):

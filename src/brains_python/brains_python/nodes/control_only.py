@@ -22,6 +22,11 @@ class ControlOnly(Node):
         super().__init__("control_only_node")
         # node parameters
         track_name = self.declare_parameter("track_name", "fsds_competition_2")
+        mission = (
+            Mission.SHORT_SKIDPAD
+            if track_name.value == "short_skidpad"
+            else Mission.TRACKDRIVE
+        )
         lap_count = self.declare_parameter("lap_count", 10)
         freq = self.declare_parameter("freq", 20.0)
         self.dt = 1 / freq.value
@@ -46,16 +51,19 @@ class ControlOnly(Node):
         self.motion_planner_controller = MotionPlannerController(
             car_params=car_params,
             racing_controller_params=IHMAcadosParams(**fsds_ihm_acados_params),
+            # racing_controller_params=StanleyParams(
+            #     **stanley_params_from_mission(mission)
+            # ),
             stopping_controller_params=StanleyParams(
-                **stanley_params_from_mission(Mission.TRACKDRIVE)
+                **stanley_params_from_mission(mission)
             ),
             motion_planner_params=MotionPlannerParams(
-                mission=Mission.TRACKDRIVE,
+                mission=mission,
                 center_points=track.center_line,
                 widths=track.track_widths,
                 psi_s=np.pi / 2,
                 psi_e=np.pi / 2,
-                closed=True,
+                closed=mission == Mission.TRACKDRIVE,
                 additional_attributes=[],
             ),
             max_lap_count=lap_count.value,
