@@ -42,11 +42,11 @@ class CSVLogger(Node):
         if car_state is None:
             car_state_str = ",,,,,"
         else:
-            car_state_str = f"{car_state.x:.5f}, {car_state.y:.5f}, {car_state.phi:.5f}, {car_state.v_x:.5f}, {car_state.v_y:.5f}, {car_state.r:.5f}"
+            car_state_str = f"{car_state.x}, {car_state.y}, {car_state.phi}, {car_state.v_x}, {car_state.v_y}, {car_state.r}"
         if car_controls is None:
             car_controls_str = ",,,"
         else:
-            car_controls_str = f"{car_controls.throttle:.5f}, {car_controls.steering:.5f}, {car_controls.throttle_rate:.5f}, {car_controls.steering_rate:.5f}"
+            car_controls_str = f"{car_controls.throttle}, {car_controls.steering}, {car_controls.throttle_rate}, {car_controls.steering_rate}"
         return (
             (
                 f"{car_state.header.stamp.sec + car_state.header.stamp.nanosec/1e9:.3f}"
