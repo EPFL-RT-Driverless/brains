@@ -86,6 +86,7 @@ class ControlOnly(Node):
                 - self.last_control_stamp
             )
             if dt >= self.dt * 0.9:
+                start = self.get_clock().now()
                 self.last_control_stamp = (
                     car_state.header.stamp.sec + car_state.header.stamp.nanosec * 1e-9
                 )
@@ -102,25 +103,41 @@ class ControlOnly(Node):
                     ),
                     current_control=self.last_control,
                 )
+                if (
+                    self.motion_planner_controller.stopping
+                    and np.abs(car_state.v_x) < 0.1
+                ):
+                    self.control_phase_pub.publish(
+                        ControlPhase(
+                            header=Header(stamp=self.get_clock().now().to_msg()),
+                            phase=ControlPhase.STOPPED,
+                        )
+                    )
+                    # TODO: send special hand brake command ?
+                    self.get_logger().info("Stopped the car")
+                    raise RuntimeError("Stopped the car")
+
                 self.control_phase_pub.publish(
                     ControlPhase(
                         header=Header(stamp=self.get_clock().now().to_msg()),
-                        phase=ControlPhase.RACING
-                        if not self.motion_planner_controller.stopping
-                        else (
-                            ControlPhase.STOPPING
-                            if np.abs(car_state.v_x) > 0.01
-                            else ControlPhase.STOPPED
-                        ),
+                        phase=ControlPhase.STOPPING
+                        if self.motion_planner_controller.stopping
+                        else ControlPhase.RACING,
                     )
                 )
 
                 self.last_control = control_result.control
+                stop = self.get_clock().now()
+
+                self.get_logger().info(
+                    f"Control computation took {(stop.nanoseconds - start.nanoseconds) / 1e6} ms"
+                )
+
                 self.car_controls_pub.publish(
                     CarControls(
                         header=Header(stamp=self.get_clock().now().to_msg()),
-                        throttle=control_result.control[0],
-                        steering=control_result.control[1],
+                        throttle=control_result.control[0] + np.random.rand() * 0.1,
+                        steering=control_result.control[1] + np.random.rand() * 0.1,
                         throttle_rate=control_result.control_derivative[0],
                         steering_rate=control_result.control_derivative[1],
                     )
@@ -130,8 +147,14 @@ class ControlOnly(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = ControlOnly()
-    rclpy.spin(node)
-    node.destroy_node()
+    try:
+        rclpy.spin(node)
+    # except KeyboardInterrupt:
+    #     node.get_logger().info("KeyboardInterrupt")
+    #     node.destroy_node()
+    except RuntimeError:
+        node.destroy_node()
+
     rclpy.shutdown()
 
 

@@ -59,22 +59,22 @@ class CSVLogger(Node):
         )
 
     def state_callback(self, car_state: CarState):
-        start_time = self.get_clock().now().nanoseconds
+        # start_time = self.get_clock().now().nanoseconds
         with open(self.log_path.value, "a") as f:
             f.write(CSVLogger.msgs_to_str(car_state, None))
-        end_time = self.get_clock().now().nanoseconds
-        self.get_logger().info(
-            f"state callback took {(end_time - start_time) / 1000000} ms to execute."
-        )
+        # end_time = self.get_clock().now().nanoseconds
+        # self.get_logger().info(
+        #     f"state callback took {(end_time - start_time) / 1000000} ms to execute."
+        # )
 
     def controls_callback(self, car_controls: CarControls):
-        start_time = self.get_clock().now().nanoseconds
+        # start_time = self.get_clock().now().nanoseconds
         with open(self.log_path.value, "a") as f:
             f.write(CSVLogger.msgs_to_str(None, car_controls))
-        end_time = self.get_clock().now().nanoseconds
-        self.get_logger().info(
-            f"control callback took {(end_time - start_time) / 1000000} ms to execute."
-        )
+        # end_time = self.get_clock().now().nanoseconds
+        # self.get_logger().info(
+        #     f"control callback took {(end_time - start_time) / 1000000} ms to execute."
+        # )
 
 
 def main(args=None):
