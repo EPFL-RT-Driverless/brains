@@ -61,8 +61,11 @@ class CSVLogger(Node):
         )
 
     def state_callback(self, car_state: CarState):
+        # start = self.get_clock().now()
         with open(self.log_path.value, "a") as f:
             f.write(CSVLogger.msgs_to_str(car_state, self.last_controls))
+        # stop = self.get_clock().now()
+        # self.get_logger().info(f"Writing to CSV took {(stop.nanoseconds - start.nanoseconds) / 1e6} ms")
 
     def controls_callback(self, car_controls: CarControls):
         self.last_controls = car_controls
